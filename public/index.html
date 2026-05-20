@@ -60,6 +60,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f3f3;color:#1c1c1c}
 .plp-desc{font-size:12px;color:#888;line-height:1.3}
 .plp-out{font-size:11px;font-weight:600;color:#f44336;background:#fff5f5;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:2px}
 .plp-low{font-size:11px;font-weight:600;color:#ff9800;background:#fff8e1;border-radius:6px;padding:2px 6px;display:inline-block;margin-top:2px}
+.plp-offer-badge{position:absolute;top:8px;left:8px;background:linear-gradient(135deg,#e53935,#c62828);color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;letter-spacing:.3px;box-shadow:0 2px 6px rgba(229,57,53,.4);z-index:2;pointer-events:none}
+.plp-offer-note{font-size:11px;color:#e53935;font-weight:600;margin-top:2px}
 .plp-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px}
 .plp-price{font-size:15px;font-weight:700;color:#1c1c1c}
 .atc-add{background:#fff;border:1.5px solid #0c831f;color:#0c831f;font-size:14px;font-weight:700;padding:5px 16px;border-radius:8px;cursor:pointer;transition:all .15s}
@@ -296,7 +298,7 @@ var CUST_NAME_KEY  = 'oos_cust_name';
 var CUST_PHONE_KEY = 'oos_cust_phone';
 var CUST_EMAIL_KEY = 'oos_cust_email';
 
-var allProducts = [], cart = {}, settings = {};
+var allProducts = [], cart = {}, settings = {}, activeOffers = [];
 
 async function apiFetch(url, body) {
   var opts = body
@@ -319,7 +321,12 @@ window.onload = async function() {
   } catch(e) {}
 
   try {
-    var d = await apiFetch('/api/settings?pageData=true');
+    var results = await Promise.all([
+      apiFetch('/api/settings?pageData=true'),
+      apiFetch('/api/offers')
+    ]);
+    var d = results[0];
+    activeOffers = Array.isArray(results[1]) ? results[1] : [];
     settings = d.settings || {};
     applyBranding();
     onProductsLoaded(d.products || []);
@@ -638,6 +645,20 @@ function filterProducts() {
   renderProducts(filtered);
 }
 
+function getOfferForProduct(p) {
+  var best = null, bestDisc = 0;
+  for (var i = 0; i < activeOffers.length; i++) {
+    var o = activeOffers[i];
+    if (o.apply_to === 'product' && String(o.product_id) !== String(p.id)) continue;
+    if (o.apply_to === 'category' && o.category !== p.category) continue;
+    var disc = o.discount_type === 'percent'
+      ? parseFloat(p.price) * (parseFloat(o.discount_value) / 100)
+      : parseFloat(o.discount_value);
+    if (disc > bestDisc) { bestDisc = disc; best = o; }
+  }
+  return best;
+}
+
 function renderProducts(products) {
   var grid = document.getElementById('productGrid');
   var sym = (settings && settings.currency_symbol) || 'Rs.';
@@ -661,11 +682,19 @@ function renderProducts(products) {
       : qty > 0
         ? '<div class="atc-counter"><button class="atc-btn" onclick="decrementCart(\'' + escAttr(pid) + '\')">-</button><span class="atc-qty">' + qty + '</span><button class="atc-btn" onclick="addToCart(\'' + escAttr(pid) + '\')">+</button></div>'
         : '<button class="atc-add" onclick="addToCart(\'' + escAttr(pid) + '\')">Add</button>';
+    var offer = getOfferForProduct(p);
+    var offerBadge = offer
+      ? '<span class="plp-offer-badge">' + (offer.discount_type === 'percent' ? parseFloat(offer.discount_value).toFixed(0) + '% OFF' : sym + parseFloat(offer.discount_value).toFixed(0) + ' OFF') + '</span>'
+      : '';
+    var offerNote = offer
+      ? '<div class="plp-offer-note">' + esc(offer.name) + '</div>'
+      : '';
     return '<div class="plp-card' + (outStock?' out-stock':'') + '">' +
-      '<div class="plp-img-wrap">' + imgHtml + '</div>' +
+      '<div class="plp-img-wrap">' + imgHtml + offerBadge + '</div>' +
       '<div class="plp-body">' +
         '<div class="plp-name">' + esc(p.name) + '</div>' +
         '<div class="plp-desc">' + esc(p.description||'') + '</div>' +
+        offerNote +
         stockBadge +
         '<div class="plp-footer">' +
           '<div class="plp-price">' + sym + parseFloat(p.price).toFixed(2) + '</div>' +
