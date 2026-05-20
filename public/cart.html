@@ -65,6 +65,19 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
 .error-msg{color:#f44336;font-size:13px;margin-top:8px;display:none}
 .empty-cart{text-align:center;padding:60px 20px;color:#aaa}
 .empty-cart a{color:#4a90d9;text-decoration:none;font-weight:600;margin-top:16px;display:block}
+.offer-banner{background:linear-gradient(135deg,#ff6b35,#f7931e);border-radius:12px;padding:16px 20px;margin-bottom:16px;color:#fff;display:none}
+.offer-banner.show{display:block}
+.offer-banner-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.offer-tag{font-size:11px;background:rgba(0,0,0,.2);padding:3px 10px;border-radius:20px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.offer-name-text{font-size:16px;font-weight:800}
+.offer-desc-text{font-size:13px;opacity:.9;margin-bottom:10px}
+.offer-bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.offer-saving{font-size:20px;font-weight:800}
+.offer-timer-wrap{text-align:right}
+.offer-timer{font-size:15px;font-weight:700;font-family:monospace;background:rgba(0,0,0,.2);padding:5px 12px;border-radius:8px;letter-spacing:1px}
+.offer-timer-label{font-size:10px;opacity:.75;margin-top:3px;text-align:center}
+.no-offer-note{background:#f0f7ff;border:1px dashed #b3d1f5;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#5a80a0;display:none}
+.no-offer-note.show{display:block}
 @media(max-width:480px){.form-row{grid-template-columns:1fr}}
 </style>
 </head>
@@ -87,6 +100,22 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
     <div id="summaryRows"></div>
     <div id="minOrderNote" class="min-order-note"></div>
   </div>
+
+  <div class="offer-banner" id="offerBanner">
+    <div class="offer-banner-top">
+      <span class="offer-tag">&#127881; Offer Applied</span>
+      <span class="offer-name-text" id="offerBannerName"></span>
+    </div>
+    <div class="offer-desc-text" id="offerBannerDesc"></div>
+    <div class="offer-bottom">
+      <div class="offer-saving">You save <span id="offerBannerSaving"></span>!</div>
+      <div class="offer-timer-wrap">
+        <div class="offer-timer" id="offerCountdownEl">--:--:--</div>
+        <div class="offer-timer-label">Offer expires in</div>
+      </div>
+    </div>
+  </div>
+  <div class="no-offer-note" id="noOfferNote">No active offers right now. Check back later!</div>
 
   <div class="section" id="checkoutSection" style="display:none">
     <h2 id="checkoutTitle">Delivery Details</h2>
@@ -180,6 +209,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
 var cart = {}, settings = {};
 var selectedCollection = 'Delivery';
 var selectedPayment = 'UPI';
+var activeOffers = [], appliedOffer = null, offerCountdownTimer = null;
 
 window.onload = async function() {
   var name  = localStorage.getItem('oos_cust_name');
@@ -194,6 +224,11 @@ window.onload = async function() {
     settings = await r.json();
     populateUPI();
   } catch(e) {}
+
+  try {
+    var or = await fetch('/api/offers');
+    activeOffers = await or.json();
+  } catch(e) { activeOffers = []; }
 
   loadCart();
 };
@@ -237,21 +272,31 @@ function renderCart() {
     '</div>';
   }).join('');
   document.getElementById('cartItems').innerHTML = html;
-  renderSummary();
+  checkOffers();
   document.getElementById('summarySection').style.display = 'block';
   document.getElementById('checkoutSection').style.display = 'block';
 }
 
+function getCartSubtotal() {
+  return Object.values(cart).reduce(function(s,i){ return s + parseFloat(i.price) * i.qty; }, 0);
+}
+
 function renderSummary() {
-  var sym        = settings.currency_symbol || 'Rs.';
+  var sym         = settings.currency_symbol || 'Rs.';
   var deliveryFee = selectedCollection === 'Pickup' ? 0 : (parseFloat(settings.delivery_fee) || 0);
-  var minOrder   = parseFloat(settings.minimum_order) || 0;
-  var subtotal   = Object.values(cart).reduce(function(s,i){ return s + parseFloat(i.price) * i.qty; }, 0);
-  var total      = subtotal + deliveryFee;
+  var minOrder    = parseFloat(settings.minimum_order) || 0;
+  var subtotal    = getCartSubtotal();
+  var discount    = appliedOffer ? appliedOffer.discountAmount : 0;
+  var total       = Math.max(0, subtotal + deliveryFee - discount);
+
+  var discountRow = discount > 0
+    ? '<div class="summary-row" style="color:#e65100"><span>Discount (' + esc(appliedOffer.name) + ')</span><span>- ' + sym + discount.toFixed(2) + '</span></div>'
+    : '';
 
   document.getElementById('summaryRows').innerHTML =
     '<div class="summary-row"><span>Subtotal</span><span>' + sym + subtotal.toFixed(2) + '</span></div>' +
     '<div class="summary-row"><span>Delivery Fee</span><span>' + sym + deliveryFee.toFixed(2) + '</span></div>' +
+    discountRow +
     '<div class="summary-row"><span>Total</span><span>' + sym + total.toFixed(2) + '</span></div>';
 
   document.getElementById('upiAmount').textContent = sym + total.toFixed(2);
@@ -262,6 +307,67 @@ function renderSummary() {
   document.getElementById('minOrderNote').textContent = note;
 }
 
+function checkOffers() {
+  if (offerCountdownTimer) { clearInterval(offerCountdownTimer); offerCountdownTimer = null; }
+  appliedOffer = null;
+
+  var items = Object.values(cart).filter(function(i){ return i.qty > 0; });
+  if (!items.length) {
+    document.getElementById('offerBanner').classList.remove('show');
+    document.getElementById('noOfferNote').classList.remove('show');
+    renderSummary();
+    return;
+  }
+
+  var subtotal = getCartSubtotal();
+  var sym = settings.currency_symbol || 'Rs.';
+  var best = null, bestDiscount = 0;
+
+  activeOffers.forEach(function(offer) {
+    if (subtotal < parseFloat(offer.min_order || 0)) return;
+    if (offer.apply_to === 'product') {
+      if (!items.some(function(i){ return i.id === offer.product_id; })) return;
+    }
+    var disc = offer.discount_type === 'percent'
+      ? subtotal * (parseFloat(offer.discount_value) / 100)
+      : parseFloat(offer.discount_value);
+    disc = Math.min(Math.round(disc * 100) / 100, subtotal);
+    if (disc > bestDiscount) { bestDiscount = disc; best = Object.assign({}, offer, { discountAmount: disc }); }
+  });
+
+  if (best) {
+    appliedOffer = best;
+    document.getElementById('offerBannerName').textContent = best.name;
+    document.getElementById('offerBannerDesc').textContent = best.description || '';
+    document.getElementById('offerBannerSaving').textContent = sym + best.discountAmount.toFixed(2);
+    document.getElementById('offerBanner').classList.add('show');
+    document.getElementById('noOfferNote').classList.remove('show');
+
+    function updateCountdown() {
+      var diff = new Date(best.valid_to) - new Date();
+      if (diff <= 0) {
+        document.getElementById('offerCountdownEl').textContent = 'Expired';
+        clearInterval(offerCountdownTimer);
+        activeOffers = activeOffers.filter(function(o){ return o.id !== best.id; });
+        checkOffers();
+        return;
+      }
+      var h = Math.floor(diff / 3600000);
+      var m = Math.floor((diff % 3600000) / 60000);
+      var s = Math.floor((diff % 60000) / 1000);
+      function pad(n){ return n < 10 ? '0'+n : String(n); }
+      document.getElementById('offerCountdownEl').textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+    }
+    updateCountdown();
+    offerCountdownTimer = setInterval(updateCountdown, 1000);
+  } else {
+    document.getElementById('offerBanner').classList.remove('show');
+    document.getElementById('noOfferNote').classList.add('show');
+  }
+
+  renderSummary();
+}
+
 function changeQty(id, delta) {
   if (!cart[id]) return;
   cart[id].qty += delta;
@@ -269,6 +375,7 @@ function changeQty(id, delta) {
   saveCart(); renderCart();
 }
 function removeItem(id) { delete cart[id]; saveCart(); renderCart(); }
+
 
 function selectCollection(method) {
   selectedCollection = method;
@@ -284,7 +391,7 @@ function selectCollection(method) {
     addrInput.required = true;
     document.getElementById('checkoutTitle').textContent = 'Delivery Details';
   }
-  renderSummary();
+  checkOffers();
 }
 
 function selectPayment(method) {

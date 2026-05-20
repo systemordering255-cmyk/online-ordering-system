@@ -194,6 +194,7 @@ tr:hover td{background:#fafbff}
     <div class="tab" onclick="switchTab('customers',this)">Customers</div>
     <div class="tab" onclick="switchTab('reviews',this)">Reviews</div>
     <div class="tab" onclick="switchTab('complaints',this)">Complaints</div>
+    <div class="tab" onclick="switchTab('offers',this)">Offers</div>
     <div class="tab" onclick="switchTab('reports',this)">Reports</div>
     <div class="tab" onclick="switchTab('export',this)">Export</div>
     <div class="tab" onclick="switchTab('settings',this)">Settings</div>
@@ -288,6 +289,15 @@ tr:hover td{background:#fafbff}
           <button class="btn btn-outline btn-sm" onclick="document.getElementById('filterComplaintStatus').value='';loadComplaints()">Clear</button>
         </div>
         <div class="table-wrap"><div id="complaintsTableWrap"><div class="loading">Loading&#8230;</div></div></div>
+      </div>
+    </div>
+
+    <div id="tab-offers" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Offers &amp; Discounts
+          <button class="btn btn-primary btn-sm" onclick="openOfferModal(null)">+ New Offer</button>
+        </div>
+        <div class="table-wrap"><div id="offersTableWrap"><div class="loading">Loading&#8230;</div></div></div>
       </div>
     </div>
 
@@ -478,6 +488,75 @@ tr:hover td{background:#fafbff}
   </div>
 </div>
 
+<div class="modal-overlay" id="offerModal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <h3 id="offerModalTitle">New Offer</h3>
+      <button class="modal-close" onclick="closeModal('offerModal')">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1/-1">
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Offer Name *</label>
+          <input id="offerName" type="text" placeholder="e.g. Weekend Special, Diwali Offer" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Description (shown to customer)</label>
+          <input id="offerDesc" type="text" placeholder="e.g. Get 10% off on orders above Rs.500" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Discount Type *</label>
+          <select id="offerDiscountType" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+            <option value="percent">Percentage (e.g. 10%)</option>
+            <option value="flat">Flat Amount (e.g. Rs.50 off)</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Discount Value *</label>
+          <input id="offerDiscountValue" type="number" min="0.01" step="0.01" placeholder="e.g. 10 for 10% or 50 for Rs.50" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Apply To</label>
+          <select id="offerApplyTo" onchange="toggleOfferApplyFields()" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+            <option value="order">Entire Order</option>
+            <option value="product">Specific Product</option>
+            <option value="category">Product Category</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Minimum Order Amount</label>
+          <input id="offerMinOrder" type="number" min="0" step="0.01" placeholder="0 = no minimum" value="0" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div id="offerProductField" style="grid-column:1/-1;display:none">
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Select Product</label>
+          <select id="offerProductId" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none"><option value="">-- select product --</option></select>
+        </div>
+        <div id="offerCategoryField" style="grid-column:1/-1;display:none">
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Category Name</label>
+          <input id="offerCategory" type="text" placeholder="e.g. Beverages, Snacks" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Valid From *</label>
+          <input id="offerValidFrom" type="datetime-local" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Valid To *</label>
+          <input id="offerValidTo" type="datetime-local" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Maximum Uses (optional)</label>
+          <input id="offerMaxUses" type="number" min="1" step="1" placeholder="Leave blank = unlimited" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+        </div>
+      </div>
+      <p id="offerModalError" style="color:#f44336;font-size:13px;margin-top:12px;display:none"></p>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn btn-primary" onclick="saveOffer()">Save Offer</button>
+        <button class="btn btn-outline" onclick="closeModal('offerModal')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -567,7 +646,7 @@ var tabLoaded = {};
 function switchTab(name, el) {
   document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
   el.classList.add('active');
-  ['overview','orders','payments','products','inventory','customers','reviews','complaints','reports','export','settings'].forEach(function(t){
+  ['overview','orders','payments','products','inventory','customers','reviews','complaints','offers','reports','export','settings'].forEach(function(t){
     document.getElementById('tab-'+t).style.display = t === name ? 'block' : 'none';
   });
   if (!tabLoaded[name]) loadTab(name);
@@ -582,12 +661,13 @@ function loadTab(name) {
   if (name === 'customers')  loadCustomers();
   if (name === 'reviews')    loadReviews();
   if (name === 'complaints') loadComplaints();
+  if (name === 'offers')     loadOffers();
   if (name === 'settings')   loadSettings();
 }
 
 async function loadOverview() {
   try {
-    var d = await apiFetch('/api/dashboard?token=' + encodeURIComponent(adminToken));
+    var d = await apiFetch('/api/orders?dashboard=true&token=' + encodeURIComponent(adminToken));
     if (d.error) { showToast(d.error, 'error'); return; }
     document.getElementById('statsGrid').innerHTML =
       statCard('Today Orders', d.todayOrders, 'blue') +
@@ -1337,6 +1417,191 @@ function formatDate(d) {
 }
 function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+/* ── OFFERS ───────────────────────────────────────────── */
+var editingOfferId = null, allOffersCache = [];
+
+function offerStatus(o) {
+  var now = new Date(), from = new Date(o.valid_from), to = new Date(o.valid_to);
+  if (now > to)   return { label:'Expired',   cls:'b-cancelled' };
+  if (!o.active)  return { label:'Inactive',  cls:'b-failed' };
+  if (now < from) return { label:'Upcoming',  cls:'b-confirmed' };
+  if (o.max_uses !== null && o.uses_count >= o.max_uses) return { label:'Maxed Out', cls:'b-paypending' };
+  return { label:'Active', cls:'b-delivered' };
+}
+
+function offerCountdown(validTo) {
+  var diff = new Date(validTo) - new Date();
+  if (diff <= 0) return 'Expired';
+  var d = Math.floor(diff / 86400000);
+  var h = Math.floor((diff % 86400000) / 3600000);
+  var m = Math.floor((diff % 3600000) / 60000);
+  if (d > 0) return d + 'd ' + h + 'h left';
+  if (h > 0) return h + 'h ' + m + 'm left';
+  return m + 'm left';
+}
+
+async function loadOffers() {
+  try {
+    var offers = await apiFetch('/api/offers?admin=true&token=' + encodeURIComponent(adminToken));
+    allOffersCache = offers || [];
+    renderOffersTable(allOffersCache);
+  } catch(e) { showToast('Failed to load offers', 'error'); }
+}
+
+function renderOffersTable(offers) {
+  var sym = currencySymbol;
+  if (!offers.length) {
+    document.getElementById('offersTableWrap').innerHTML = '<p style="padding:20px;color:#999">No offers yet. Click "+ New Offer" to create one.</p>';
+    return;
+  }
+  var html = '<table><thead><tr><th>Name</th><th>Discount</th><th>Apply To</th><th>Min Order</th><th>Valid From</th><th>Valid To</th><th>Uses</th><th>Time Left</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  offers.forEach(function(o, idx) {
+    var st = offerStatus(o);
+    var discLabel = o.discount_type === 'percent' ? o.discount_value + '%' : sym + parseFloat(o.discount_value).toFixed(2);
+    var applyLabel = o.apply_to === 'order' ? 'Entire Order' : o.apply_to === 'product' ? 'Product' : 'Category: ' + o.category;
+    var usesLabel = o.max_uses ? o.uses_count + ' / ' + o.max_uses : o.uses_count + ' / &#8734;';
+    var countdown = st.label === 'Active' ? offerCountdown(o.valid_to) : '--';
+    html += '<tr>' +
+      '<td><strong>' + esc(o.name) + '</strong>' + (o.description ? '<br><small style="color:#999">' + esc(o.description) + '</small>' : '') + '</td>' +
+      '<td style="color:#e65100;font-weight:700">' + esc(discLabel) + ' off</td>' +
+      '<td>' + esc(applyLabel) + '</td>' +
+      '<td>' + (parseFloat(o.min_order) > 0 ? sym + parseFloat(o.min_order).toFixed(2) : 'None') + '</td>' +
+      '<td class="mono">' + shortDate(o.valid_from) + '</td>' +
+      '<td class="mono">' + shortDate(o.valid_to) + '</td>' +
+      '<td>' + usesLabel + '</td>' +
+      '<td style="font-weight:600;color:#4a90d9">' + countdown + '</td>' +
+      '<td><span class="badge ' + st.cls + '">' + st.label + '</span></td>' +
+      '<td><div style="display:flex;gap:6px;flex-wrap:wrap">' +
+        '<button class="btn btn-outline btn-sm" onclick="openOfferModal(' + idx + ')">Edit</button>' +
+        '<button class="btn btn-sm" style="background:' + (o.active ? '#ff9800' : '#43a047') + ';color:#fff" onclick="toggleOffer(\'' + o.id + '\',' + !o.active + ')">' + (o.active ? 'Disable' : 'Enable') + '</button>' +
+        '<button class="btn btn-sm" style="background:#f44336;color:#fff" onclick="deleteOffer(\'' + o.id + '\')">Delete</button>' +
+      '</div></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('offersTableWrap').innerHTML = html;
+}
+
+function toggleOfferApplyFields() {
+  var v = document.getElementById('offerApplyTo').value;
+  document.getElementById('offerProductField').style.display  = v === 'product'  ? 'block' : 'none';
+  document.getElementById('offerCategoryField').style.display = v === 'category' ? 'block' : 'none';
+}
+
+function toLocalDatetimeValue(isoString) {
+  if (!isoString) return '';
+  var d = new Date(isoString);
+  var pad = function(n){ return n < 10 ? '0'+n : String(n); };
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+
+async function openOfferModal(idx) {
+  editingOfferId = null;
+  document.getElementById('offerModalTitle').textContent = idx === null ? 'New Offer' : 'Edit Offer';
+  document.getElementById('offerModalError').style.display = 'none';
+
+  if (idx === null) {
+    document.getElementById('offerName').value = '';
+    document.getElementById('offerDesc').value = '';
+    document.getElementById('offerDiscountType').value = 'percent';
+    document.getElementById('offerDiscountValue').value = '';
+    document.getElementById('offerApplyTo').value = 'order';
+    document.getElementById('offerMinOrder').value = '0';
+    document.getElementById('offerValidFrom').value = '';
+    document.getElementById('offerValidTo').value = '';
+    document.getElementById('offerMaxUses').value = '';
+    document.getElementById('offerProductId').value = '';
+    document.getElementById('offerCategory').value = '';
+  } else {
+    var o = allOffersCache[idx];
+    editingOfferId = o.id;
+    document.getElementById('offerName').value = o.name;
+    document.getElementById('offerDesc').value = o.description || '';
+    document.getElementById('offerDiscountType').value = o.discount_type;
+    document.getElementById('offerDiscountValue').value = o.discount_value;
+    document.getElementById('offerApplyTo').value = o.apply_to;
+    document.getElementById('offerMinOrder').value = o.min_order || 0;
+    document.getElementById('offerValidFrom').value = toLocalDatetimeValue(o.valid_from);
+    document.getElementById('offerValidTo').value = toLocalDatetimeValue(o.valid_to);
+    document.getElementById('offerMaxUses').value = o.max_uses || '';
+    document.getElementById('offerProductId').value = o.product_id || '';
+    document.getElementById('offerCategory').value = o.category || '';
+  }
+
+  // Populate product dropdown
+  if (allProductsCache.length) {
+    var opts = '<option value="">-- select product --</option>';
+    allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(p.id)+'">'+esc(p.name)+'</option>'; });
+    document.getElementById('offerProductId').innerHTML = opts;
+    if (editingOfferId) document.getElementById('offerProductId').value = allOffersCache.find(function(o){ return o.id === editingOfferId; })?.product_id || '';
+  } else {
+    var prods = await apiFetch('/api/products?admin=true&token=' + encodeURIComponent(adminToken));
+    allProductsCache = prods || [];
+    var opts = '<option value="">-- select product --</option>';
+    allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(p.id)+'">'+esc(p.name)+'</option>'; });
+    document.getElementById('offerProductId').innerHTML = opts;
+  }
+
+  toggleOfferApplyFields();
+  document.getElementById('offerModal').classList.add('show');
+}
+
+async function saveOffer() {
+  var errEl = document.getElementById('offerModalError');
+  errEl.style.display = 'none';
+
+  var offer = {
+    name:           document.getElementById('offerName').value.trim(),
+    description:    document.getElementById('offerDesc').value.trim(),
+    discount_type:  document.getElementById('offerDiscountType').value,
+    discount_value: document.getElementById('offerDiscountValue').value,
+    apply_to:       document.getElementById('offerApplyTo').value,
+    product_id:     document.getElementById('offerProductId').value || null,
+    category:       document.getElementById('offerCategory').value.trim(),
+    min_order:      document.getElementById('offerMinOrder').value || '0',
+    valid_from:     document.getElementById('offerValidFrom').value,
+    valid_to:       document.getElementById('offerValidTo').value,
+    max_uses:       document.getElementById('offerMaxUses').value || null
+  };
+
+  if (!offer.name) { errEl.textContent = 'Offer name is required.'; errEl.style.display = 'block'; return; }
+  if (!offer.discount_value || isNaN(parseFloat(offer.discount_value))) { errEl.textContent = 'Enter a valid discount value.'; errEl.style.display = 'block'; return; }
+  if (offer.discount_type === 'percent' && parseFloat(offer.discount_value) > 100) { errEl.textContent = 'Percentage cannot exceed 100.'; errEl.style.display = 'block'; return; }
+  if (!offer.valid_from || !offer.valid_to) { errEl.textContent = 'Valid From and Valid To are required.'; errEl.style.display = 'block'; return; }
+  if (new Date(offer.valid_to) <= new Date(offer.valid_from)) { errEl.textContent = 'End date must be after start date.'; errEl.style.display = 'block'; return; }
+  if (offer.apply_to === 'product' && !offer.product_id) { errEl.textContent = 'Please select a product.'; errEl.style.display = 'block'; return; }
+  if (offer.apply_to === 'category' && !offer.category) { errEl.textContent = 'Please enter a category name.'; errEl.style.display = 'block'; return; }
+
+  try {
+    var body = editingOfferId
+      ? { action: 'update', token: adminToken, offerId: editingOfferId, offer: offer }
+      : { action: 'create', token: adminToken, offer: offer };
+    var r = await apiFetch('/api/offers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!r.success) { errEl.textContent = r.error || 'Failed to save.'; errEl.style.display = 'block'; return; }
+    closeModal('offerModal');
+    showToast(editingOfferId ? 'Offer updated!' : 'Offer created!', 'success');
+    tabLoaded['offers'] = false;
+    loadOffers();
+  } catch(e) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+async function toggleOffer(id, newActive) {
+  try {
+    var r = await apiFetch('/api/offers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'toggle', token: adminToken, offerId: id, active: newActive }) });
+    if (r.success) { showToast(newActive ? 'Offer enabled.' : 'Offer disabled.', 'success'); tabLoaded['offers'] = false; loadOffers(); }
+    else showToast(r.error || 'Failed.', 'error');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteOffer(id) {
+  if (!confirm('Delete this offer? This cannot be undone.')) return;
+  try {
+    var r = await apiFetch('/api/offers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'delete', token: adminToken, offerId: id }) });
+    if (r.success) { showToast('Offer deleted.', 'success'); tabLoaded['offers'] = false; loadOffers(); }
+    else showToast(r.error || 'Failed.', 'error');
+  } catch(e) { showToast(e.message, 'error'); }
+}
 
 function getExportDateRange(period) {
   var now = new Date();

@@ -84,6 +84,27 @@ module.exports = async (req, res) => {
       return res.json({ available: true, otp: otpRow.otp });
     }
 
+    // GET /api/orders?dashboard=true&token=xxx
+    if (req.method === 'GET' && req.query.dashboard) {
+      const session = await validateAdminSession(req.query.token);
+      if (!session) return res.status(401).json({ error: 'Unauthorized' });
+      const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+      const todayEnd   = new Date(); todayEnd.setHours(23,59,59,999);
+      const [todayRes, pendingRes, lowStockRes, recentRes] = await Promise.all([
+        supabase.from('orders').select('total').gte('created_at', todayStart.toISOString()).lte('created_at', todayEnd.toISOString()).neq('order_status','Cancelled'),
+        supabase.from('orders').select('order_id', { count:'exact' }).eq('order_status','Pending'),
+        supabase.from('products').select('name, stock').eq('active', true).lt('stock', 10),
+        supabase.from('orders').select('*').order('created_at',{ ascending:false }).limit(10)
+      ]);
+      return res.json({
+        todayOrders:   todayRes.data?.length || 0,
+        todayRevenue:  (todayRes.data||[]).reduce((s,o) => s + (parseFloat(o.total)||0), 0),
+        pendingOrders: pendingRes.count || 0,
+        lowStock:      lowStockRes.data || [],
+        recentOrders:  recentRes.data  || []
+      });
+    }
+
     // GET /api/orders?admin=true&token=xxx  → all orders (admin), with optional sub-queries
     if (req.method === 'GET' && req.query.admin) {
       const session = await validateAdminSession(req.query.token);
@@ -162,7 +183,30 @@ module.exports = async (req, res) => {
           return res.json({ success: false, error: `Minimum order amount is Rs.${minOrder}.` });
         }
 
-        const total         = subtotal + deliveryFee;
+        // Apply best valid offer (server-side, never trust client)
+        let discountAmount = 0, appliedOfferId = null, appliedOfferName = '';
+        const nowIso = new Date().toISOString();
+        const { data: activeOffers } = await supabase.from('offers')
+          .select('*').eq('active', true).lte('valid_from', nowIso).gte('valid_to', nowIso);
+        for (const offer of (activeOffers || [])) {
+          if (offer.max_uses !== null && offer.uses_count >= offer.max_uses) continue;
+          if (subtotal < parseFloat(offer.min_order || 0)) continue;
+          if (offer.apply_to === 'product') {
+            if (!validatedItems.some(i => i.id === offer.product_id)) continue;
+          } else if (offer.apply_to === 'category') {
+            const { data: catProds } = await supabase.from('products').select('id').eq('category', offer.category).in('id', validatedItems.map(i => i.id));
+            if (!catProds || !catProds.length) continue;
+          }
+          let disc = offer.discount_type === 'percent'
+            ? subtotal * (parseFloat(offer.discount_value) / 100)
+            : parseFloat(offer.discount_value);
+          disc = Math.min(Math.round(disc * 100) / 100, subtotal);
+          if (disc > discountAmount) {
+            discountAmount = disc; appliedOfferId = offer.id; appliedOfferName = offer.name;
+          }
+        }
+
+        const total         = Math.max(0, subtotal + deliveryFee - discountAmount);
         const paymentStatus = d.paymentMethod === 'COD' ? 'Pending Collection' : 'Pending Verification';
         const orderId       = generateOrderId();
 
@@ -176,6 +220,9 @@ module.exports = async (req, res) => {
           items_json:        validatedItems,
           subtotal,
           delivery_fee:      deliveryFee,
+          discount_amount:   discountAmount,
+          offer_id:          appliedOfferId,
+          offer_name:        appliedOfferName,
           total,
           payment_method:    d.paymentMethod,
           payment_status:    paymentStatus,
@@ -223,14 +270,20 @@ module.exports = async (req, res) => {
           });
         }
 
+        // Increment offer uses count
+        if (appliedOfferId) {
+          const { data: offerRow } = await supabase.from('offers').select('uses_count').eq('id', appliedOfferId).single();
+          if (offerRow) await supabase.from('offers').update({ uses_count: offerRow.uses_count + 1 }).eq('id', appliedOfferId);
+        }
+
         // Send emails (non-blocking)
         const orderData = { orderId, customerName: d.customerName, email: d.email, phone: d.phone,
-          address: d.address, items: validatedItems, subtotal, deliveryFee, total,
-          paymentMethod: d.paymentMethod, utr: d.utr || '', collectionMethod, settings };
+          address: d.address, items: validatedItems, subtotal, deliveryFee, discountAmount,
+          appliedOfferName, total, paymentMethod: d.paymentMethod, utr: d.utr || '', collectionMethod, settings };
         email.sendOrderConfirmation(orderData).catch(() => {});
         email.sendOwnerAlert(orderData).catch(() => {});
 
-        return res.json({ success: true, orderId, total });
+        return res.json({ success: true, orderId, total, discountAmount, offerName: appliedOfferName });
       }
 
       // Update order status (admin)
