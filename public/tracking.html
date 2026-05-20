@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Order</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
+.header{background:#4a90d9;color:#fff;padding:0 20px;display:flex;
+        align-items:center;gap:16px;height:60px;position:sticky;top:0;z-index:10;
+        box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.back-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:8px 16px;
+  border-radius:20px;cursor:pointer;font-size:14px}
+.header h1{font-size:20px;font-weight:700}
+.container{max-width:600px;margin:0 auto;padding:24px 20px}
+
+/* Search */
+.search-card{background:#fff;border-radius:12px;padding:24px;margin-bottom:20px;
+  box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.search-card h2{font-size:16px;font-weight:700;margin-bottom:16px;color:#555}
+.search-row{display:flex;gap:10px}
+.search-row input{flex:1;padding:12px 16px;border:1px solid #ddd;border-radius:8px;
+  font-size:14px;outline:none;transition:border .2s}
+.search-row input:focus{border-color:#4a90d9}
+.search-btn{padding:12px 20px;background:#4a90d9;color:#fff;border:none;
+  border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;
+  white-space:nowrap;transition:background .2s}
+.search-btn:hover{background:#357abd}
+.search-btn:disabled{background:#ccc}
+
+/* Result */
+.result-card{background:#fff;border-radius:12px;padding:24px;
+  box-shadow:0 1px 4px rgba(0,0,0,.08);display:none}
+.result-card.show{display:block}
+
+/* Stepper */
+.stepper{padding:16px 0 8px;margin-bottom:20px}
+.steps{display:flex;justify-content:space-between;position:relative;padding:0 12px}
+.steps::before{content:'';position:absolute;top:16px;left:24px;right:24px;
+  height:3px;background:#eee;z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;flex:1}
+.step-dot{width:32px;height:32px;border-radius:50%;background:#eee;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  border:3px solid #fff;box-shadow:0 0 0 2px #eee;transition:all .3s}
+.step-dot.done{background:#4a90d9;box-shadow:0 0 0 2px #4a90d9;color:#fff}
+.step-dot.current{background:#ff9800;box-shadow:0 0 0 2px #ff9800;color:#fff;
+  animation:pulse 1.5s infinite}
+.step-dot.cancelled{background:#f44336;box-shadow:0 0 0 2px #f44336;color:#fff}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.step-label{font-size:10px;color:#999;margin-top:6px;text-align:center;line-height:1.2;
+  max-width:56px}
+.step-label.done,.step-label.current{color:#333;font-weight:600}
+
+/* Details */
+.detail-section{margin-bottom:16px}
+.detail-section h3{font-size:14px;font-weight:700;color:#555;
+  margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #f0f0f0}
+.detail-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+.detail-label{color:#777}
+.detail-value{font-weight:500;text-align:right;max-width:55%}
+
+.items-list{margin-top:8px}
+.order-item-row{display:flex;justify-content:space-between;padding:6px 0;
+  font-size:13px;border-bottom:1px solid #f9f9f9}
+.order-item-row:last-child{border-bottom:none}
+
+.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.badge-pending{background:#fff3e0;color:#e65100}
+.badge-confirmed{background:#e3f2fd;color:#1565c0}
+.badge-preparing{background:#f3e5f5;color:#6a1b9a}
+.badge-delivery{background:#e0f2f1;color:#00695c}
+.badge-delivered{background:#e8f5e9;color:#2e7d32}
+.badge-cancelled{background:#fce4ec;color:#c62828}
+.badge-verified{background:#e8f5e9;color:#2e7d32}
+.badge-pay-pending{background:#fff3e0;color:#e65100}
+.badge-failed{background:#fce4ec;color:#c62828}
+.badge-collected{background:#e8f5e9;color:#2e7d32}
+
+.error-msg{color:#f44336;font-size:14px;margin-top:12px;text-align:center;display:none}
+
+/* Cancel Section */
+.cancel-section{background:#fef2f2;border:1.5px solid #fca5a5;border-radius:12px;
+  padding:18px 20px;margin-bottom:16px;display:none}
+.cancel-section.show{display:block}
+.cancel-section p{font-size:13px;color:#b91c1c;margin-bottom:12px;line-height:1.5}
+.cancel-order-btn{width:100%;padding:12px;background:#dc2626;color:#fff;border:none;
+  border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s}
+.cancel-order-btn:hover{background:#b91c1c}
+.cancel-order-btn:disabled{background:#fca5a5;cursor:not-allowed}
+
+/* Cancel Confirm Modal */
+.tc-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.tc-box{background:#fff;border-radius:16px;padding:28px 24px;width:100%;
+  max-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.tc-box h4{font-size:17px;font-weight:700;margin-bottom:8px;color:#111}
+.tc-box p{font-size:13px;color:#555;margin-bottom:20px;line-height:1.5}
+.tc-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tc-keep{background:#f3f4f6;border:none;color:#374151;border-radius:8px;
+  padding:11px;font-size:14px;font-weight:600;cursor:pointer}
+.tc-do{background:#dc2626;border:none;color:#fff;border-radius:8px;
+  padding:11px;font-size:14px;font-weight:700;cursor:pointer}
+.tc-do:hover:not(:disabled){background:#b91c1c}
+.tc-do:disabled{opacity:.5;cursor:not-allowed}
+
+/* OTP Section */
+.otp-section{display:none;margin-bottom:16px}
+.otp-section.show{display:block}
+.otp-banner{background:linear-gradient(135deg,#fff7ed,#fef3c7);
+  border:2px solid #f59e0b;border-radius:14px;padding:22px 20px;text-align:center}
+.otp-banner-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;
+  color:#92400e;font-weight:700;margin-bottom:8px}
+.otp-code-row{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0}
+.otp-code{font-size:36px;font-weight:900;letter-spacing:10px;color:#b45309;
+  font-family:monospace;background:#fff;padding:10px 18px;border-radius:10px;
+  border:2px dashed #f59e0b;min-width:180px;display:inline-block}
+.otp-copy-btn{background:#f59e0b;color:#fff;border:none;padding:10px 16px;
+  border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;
+  transition:background .2s;white-space:nowrap}
+.otp-copy-btn:hover{background:#d97706}
+.otp-expiry{font-size:12px;color:#92400e;margin-bottom:10px}
+.otp-warning{font-size:12px;color:#78350f;background:rgba(245,158,11,.12);
+  border-radius:6px;padding:9px 12px;line-height:1.4}
+
+/* Review Section */
+.feedback-card{margin-top:20px;padding-top:20px;border-top:2px solid #f0f0f0}
+.feedback-card h3{font-size:15px;font-weight:700;color:#444;margin-bottom:14px}
+.stars-row{display:flex;gap:6px;margin-bottom:14px}
+.star-btn{font-size:30px;background:none;border:none;cursor:pointer;
+  color:#ddd;transition:color .15s;line-height:1;padding:0}
+.review-textarea{width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:10px;
+  font-size:13px;resize:vertical;min-height:80px;font-family:inherit;outline:none;
+  transition:border .2s;margin-bottom:12px}
+.review-textarea:focus{border-color:#4a90d9}
+.fb-btn{padding:10px 22px;border:none;border-radius:8px;font-size:14px;
+  font-weight:600;cursor:pointer;transition:background .2s}
+.fb-btn-primary{background:#4a90d9;color:#fff}
+.fb-btn-primary:hover{background:#357abd}
+.fb-btn-primary:disabled{background:#b0c8e8;cursor:not-allowed}
+.fb-msg{font-size:13px;margin-top:8px;padding:8px 12px;border-radius:6px;display:none}
+.fb-msg.success{background:#e8f5e9;color:#2e7d32}
+.fb-msg.error{background:#fce4ec;color:#c62828}
+
+/* Complaint Section */
+.complaint-toggle{width:100%;padding:11px 16px;background:#fff;border:1.5px solid #ddd;
+  border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;text-align:left;
+  color:#555;display:flex;align-items:center;gap:8px;transition:border-color .2s;margin-top:12px}
+.complaint-toggle:hover{border-color:#f44336;color:#c62828}
+.complaint-form{display:none;margin-top:12px;background:#fff8f8;
+  border:1.5px solid #f5c6c6;border-radius:10px;padding:16px}
+.complaint-form.open{display:block}
+.cmp-field{width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;
+  font-size:13px;outline:none;font-family:inherit;transition:border .2s;
+  background:#fff;margin-bottom:10px}
+.cmp-field:focus{border-color:#f44336}
+textarea.cmp-field{resize:vertical;min-height:80px}
+.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <button class="back-btn" onclick="window.location.href='/index.html'">&#8592; Home</button>
+  <h1>Track Order</h1>
+</header>
+
+<div class="container">
+
+  <!-- My Recent Orders (shown when signed in) -->
+  <div id="myOrdersCard" class="search-card" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2>My Recent Orders</h2>
+      <span id="myOrdersGreeting" style="font-size:13px;color:#777"></span>
+    </div>
+    <div id="myOrdersList"></div>
+  </div>
+
+  <div class="search-card">
+    <h2>Enter your Order ID</h2>
+    <div class="search-row">
+      <input id="orderIdInput" type="text" placeholder="e.g. ORD-ABC123-XY"
+             onkeydown="if(event.key==='Enter')searchOrder()">
+      <button class="search-btn" id="searchBtn" onclick="searchOrder()">Track</button>
+    </div>
+    <div class="error-msg" id="searchError"></div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+
+    <div class="stepper" id="stepper"></div>
+
+    <!-- Cancel section -->
+    <div class="cancel-section" id="cancelSection">
+      <p>This order is still pending. You can cancel it within <strong>10 minutes</strong> of placing it.</p>
+      <button class="cancel-order-btn" id="cancelOrderBtn" onclick="openCancelConfirm()">Cancel This Order</button>
+    </div>
+
+    <!-- OTP banner -->
+    <div class="otp-section" id="otpSection">
+      <div class="otp-banner">
+        <div class="otp-banner-label" id="otpBannerLabel">Delivery OTP</div>
+        <div class="otp-code-row">
+          <span class="otp-code" id="otpCode">&#8212;&#8212;</span>
+          <button class="otp-copy-btn" onclick="copyOtp()">Copy</button>
+        </div>
+        <div class="otp-expiry" id="otpExpiry"></div>
+        <div class="otp-warning" id="otpWarning">
+          Share this OTP <strong>only</strong> with your delivery agent at your door.
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Order Info</h3>
+      <div class="detail-row">
+        <span class="detail-label">Order ID</span>
+        <span class="detail-value" id="rOrderId" style="font-family:monospace;font-weight:700"></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Date</span>
+        <span class="detail-value" id="rDate"></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Order Status</span>
+        <span class="detail-value" id="rOrderStatus"></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Payment</span>
+        <span class="detail-value" id="rPayMethod"></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Payment Status</span>
+        <span class="detail-value" id="rPayStatus"></span>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Items</h3>
+      <div class="items-list" id="rItems"></div>
+      <div class="detail-row" style="margin-top:8px;font-weight:700">
+        <span>Total</span>
+        <span id="rTotal" style="color:#4a90d9;font-size:16px"></span>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Delivery</h3>
+      <div class="detail-row">
+        <span class="detail-label">Name</span>
+        <span class="detail-value" id="rName"></span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Address</span>
+        <span class="detail-value" id="rAddress"></span>
+      </div>
+      <div class="detail-row" id="rNotesRow" style="display:none">
+        <span class="detail-label">Notes</span>
+        <span class="detail-value" id="rNotes"></span>
+      </div>
+    </div>
+
+    <!-- Review Section -->
+    <div id="reviewSection" style="display:none">
+      <div class="feedback-card">
+        <h3>&#11088; Rate Your Order</h3>
+        <div id="reviewFormWrap">
+          <div class="stars-row" id="starsRow">
+            <button class="star-btn" onclick="setRating(1)">&#9733;</button>
+            <button class="star-btn" onclick="setRating(2)">&#9733;</button>
+            <button class="star-btn" onclick="setRating(3)">&#9733;</button>
+            <button class="star-btn" onclick="setRating(4)">&#9733;</button>
+            <button class="star-btn" onclick="setRating(5)">&#9733;</button>
+          </div>
+          <textarea class="review-textarea" id="reviewComment"
+            placeholder="Tell us about your experience (optional)"></textarea>
+          <button class="fb-btn fb-btn-primary" id="reviewSubmitBtn" onclick="submitReviewForm()">
+            Submit Review
+          </button>
+          <div class="fb-msg" id="reviewMsg"></div>
+        </div>
+        <div id="reviewDoneMsg" style="display:none;background:#e8f5e9;color:#2e7d32;
+          padding:12px 16px;border-radius:8px;font-size:14px;font-weight:600">
+          Thank you for your review!
+        </div>
+      </div>
+    </div>
+
+    <!-- Complaint Section -->
+    <div id="complaintSection" style="display:none">
+      <button class="complaint-toggle" onclick="toggleComplaint()">
+        &#9888;&#65039; Report a Problem with this Order
+        <span id="complaintChevron" style="margin-left:auto;font-size:18px">&#8250;</span>
+      </button>
+      <div class="complaint-form" id="complaintForm">
+        <p style="font-size:13px;color:#555;margin-bottom:12px">
+          Describe your issue and we'll get back to you as soon as possible.
+        </p>
+        <div class="cmp-row">
+          <input class="cmp-field" id="cmpName" type="text" placeholder="Your Name *">
+          <input class="cmp-field" id="cmpEmail" type="email" placeholder="Your Email *">
+        </div>
+        <input class="cmp-field" id="cmpPhone" type="tel" placeholder="Phone (optional)">
+        <select class="cmp-field" id="cmpSubject">
+          <option value="">Select Issue Type *</option>
+          <option>Wrong or Missing Items</option>
+          <option>Late Delivery</option>
+          <option>Food Quality Issue</option>
+          <option>Payment Problem</option>
+          <option>Rude Behaviour</option>
+          <option>Order Not Received</option>
+          <option>Other</option>
+        </select>
+        <textarea class="cmp-field" id="cmpDescription"
+          placeholder="Please describe your issue in detail *"></textarea>
+        <button class="fb-btn fb-btn-primary" id="cmpSubmitBtn" onclick="submitComplaintForm()">
+          Submit Complaint
+        </button>
+        <div class="fb-msg" id="cmpMsg"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Cancel Confirm Modal -->
+<div class="tc-overlay" id="tcOverlay" style="display:none">
+  <div class="tc-box">
+    <h4>Cancel this order?</h4>
+    <p id="tcInfo">This action cannot be undone. You will receive a confirmation email.</p>
+    <div class="tc-btns">
+      <button class="tc-keep" onclick="closeCancelConfirm()">Keep Order</button>
+      <button class="tc-do" id="tcDoBtn" onclick="confirmCancelOrder()">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var ORDER_STEPS = ['Pending','Confirmed','Preparing','Out for Delivery','Delivered'];
+var STEP_ICONS  = ['','',String.fromCodePoint(0x1F468,0x200D,0x1F373),'',''];
+var _currentOrderId = '';
+var _currentOrderName = '';
+var _selectedRating = 0;
+
+async function apiFetch(url, options) {
+  var res = await fetch(url, options);
+  return res.json();
+}
+
+window.onload = async function() {
+  var custToken = localStorage.getItem('oos_cust_token');
+  if (custToken) {
+    var custName = localStorage.getItem('oos_cust_name');
+    if (custName) document.getElementById('myOrdersGreeting').textContent = 'Hi, ' + custName;
+    try {
+      var orders = await apiFetch('/api/orders?myOrders=true&token=' + encodeURIComponent(custToken));
+      if (orders && !orders.error && orders.length) renderMyRecentOrders(orders);
+    } catch(e) {}
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('orderId');
+  if (id) {
+    document.getElementById('orderIdInput').value = id;
+    searchOrder();
+  }
+};
+
+function renderMyRecentOrders(orders) {
+  var statusColors = {
+    'Pending':'#ff9800','Confirmed':'#2196f3','Preparing':'#9c27b0',
+    'Out for Delivery':'#009688','Delivered':'#43a047','Cancelled':'#f44336'
+  };
+  var html = orders.slice(0, 5).map(function(o) {
+    var color = statusColors[o.order_status] || '#777';
+    return '<div style="border:1px solid #eee;border-radius:8px;padding:12px;' +
+           'margin-bottom:10px;cursor:pointer;transition:border-color .2s" ' +
+           'onmouseover="this.style.borderColor=\'#4a90d9\'" ' +
+           'onmouseout="this.style.borderColor=\'#eee\'" ' +
+           'onclick="quickTrack(\'' + escAttr(o.order_id) + '\')">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<span style="font-family:monospace;font-size:13px;font-weight:700;color:#4a90d9">' + esc(o.order_id) + '</span>' +
+        '<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;' +
+               'background:' + color + '20;color:' + color + '">' + esc(o.order_status) + '</span>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;color:#777">' +
+        '<span>' + shortDate(o.created_at) + '</span>' +
+        '<span style="font-weight:700;color:#333">Rs.' + parseFloat(o.total).toFixed(2) + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  if (orders.length > 5) {
+    html += '<p style="text-align:center;font-size:12px;color:#aaa;margin-top:4px">Showing 5 most recent</p>';
+  }
+  document.getElementById('myOrdersList').innerHTML = html;
+  document.getElementById('myOrdersCard').style.display = 'block';
+}
+
+function quickTrack(orderId) {
+  document.getElementById('orderIdInput').value = orderId;
+  document.getElementById('myOrdersCard').scrollIntoView({ behavior: 'smooth' });
+  searchOrder();
+}
+
+function shortDate(d) {
+  if (!d) return '--';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    function p(n){ return n < 10 ? '0'+n : String(n); }
+    return p(dt.getDate())+'/'+p(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+p(dt.getHours())+':'+p(dt.getMinutes());
+  } catch(e) { return String(d); }
+}
+
+async function searchOrder() {
+  var id  = document.getElementById('orderIdInput').value.trim();
+  var err = document.getElementById('searchError');
+  err.style.display = 'none';
+  if (!id) { err.textContent = 'Please enter an Order ID.'; err.style.display = 'block'; return; }
+
+  var btn = document.getElementById('searchBtn');
+  btn.disabled = true; btn.textContent = 'Searching...';
+
+  try {
+    var data = await apiFetch('/api/orders?orderId=' + encodeURIComponent(id));
+    onOrderResult(data);
+  } catch(e) {
+    err.textContent = 'Error: ' + e.message; err.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Track';
+  }
+}
+
+async function onOrderResult(data) {
+  var btn = document.getElementById('searchBtn');
+  btn.disabled = false; btn.textContent = 'Track';
+  var err = document.getElementById('searchError');
+
+  if (!data || data.error) {
+    err.textContent = 'Error: ' + (data && data.error ? data.error : 'No response from server.');
+    err.style.display = 'block';
+    return;
+  }
+
+  if (!data.found) {
+    err.textContent = 'Order not found. Please check your Order ID and try again.';
+    err.style.display = 'block';
+    document.getElementById('resultCard').classList.remove('show');
+    return;
+  }
+
+  document.getElementById('resultCard').classList.add('show');
+  err.style.display = 'none';
+
+  // Stepper
+  var cancelled  = data.order_status === 'Cancelled';
+  var currentIdx = cancelled ? -1 : ORDER_STEPS.indexOf(data.order_status);
+  var stepsHtml  = ORDER_STEPS.map(function(s, i) {
+    var cls = cancelled ? (i === 0 ? 'cancelled' : '')
+            : i < currentIdx  ? 'done'
+            : i === currentIdx ? 'current' : '';
+    return '<div class="step">' +
+      '<div class="step-dot ' + cls + '">' + STEP_ICONS[i] + '</div>' +
+      '<div class="step-label ' + (cls || '') + '">' + s + '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('stepper').innerHTML = '<div class="steps">' + stepsHtml + '</div>';
+
+  // Details
+  document.getElementById('rOrderId').textContent    = data.order_id;
+  document.getElementById('rDate').textContent        = formatDate(data.created_at);
+  document.getElementById('rOrderStatus').innerHTML   = statusBadge(data.order_status);
+  document.getElementById('rPayMethod').textContent   = data.payment_method;
+  document.getElementById('rPayStatus').innerHTML     = payBadge(data.payment_status);
+  document.getElementById('rName').textContent        = data.customer_name;
+  document.getElementById('rAddress').textContent     = data.address || '--';
+
+  var notesRow = document.getElementById('rNotesRow');
+  notesRow.style.display = 'none';
+  if (data.notes) {
+    document.getElementById('rNotes').textContent = data.notes;
+    notesRow.style.display = 'flex';
+  }
+
+  // Items
+  var items = Array.isArray(data.items_json) ? data.items_json : [];
+  document.getElementById('rItems').innerHTML = items.map(function(it) {
+    return '<div class="order-item-row">' +
+      '<span>' + esc(it.name) + ' x ' + it.qty + '</span>' +
+      '<span>Rs.' + (it.lineTotal || it.price * it.qty).toFixed(2) + '</span>' +
+    '</div>';
+  }).join('');
+  document.getElementById('rTotal').textContent = 'Rs.' + parseFloat(data.total).toFixed(2);
+
+  // Cancel section
+  var cancelSection = document.getElementById('cancelSection');
+  cancelSection.classList.toggle('show', data.order_status === 'Pending');
+
+  // Review & Complaint
+  await initFeedbackSections(data);
+
+  // OTP section
+  var otpSection = document.getElementById('otpSection');
+  otpSection.classList.remove('show');
+  if (data.order_status === 'Out for Delivery') {
+    var isPickup = (data.collection_method === 'Pickup');
+    document.getElementById('otpBannerLabel').textContent =
+      isPickup ? 'Pickup OTP' : 'Delivery OTP';
+    document.getElementById('otpWarning').innerHTML = isPickup
+      ? 'Show this OTP to our <strong>store staff</strong> when you arrive to collect your order.'
+      : 'Share this OTP <strong>only</strong> with your delivery agent at your door.';
+
+    var custToken = localStorage.getItem('oos_cust_token') || '';
+    apiFetch('/api/orders?deliveryOtp=' + encodeURIComponent(data.order_id) + '&token=' + encodeURIComponent(custToken))
+      .then(function(r) {
+        var codeEl   = document.getElementById('otpCode');
+        var expiryEl = document.getElementById('otpExpiry');
+        if (r && r.available) {
+          codeEl.textContent = r.otp;
+          expiryEl.textContent = '';
+        } else if (r && r.authRequired) {
+          codeEl.textContent = '----';
+          expiryEl.innerHTML = 'Sign in on the store to view your OTP.<br>' +
+            '<span style="color:#b45309">Check your email as a backup.</span>';
+        } else if (r && r.notOwner) {
+          codeEl.textContent = '----';
+          expiryEl.textContent = 'Sign in with the account used to place this order.';
+        } else {
+          codeEl.textContent = '----';
+          expiryEl.textContent = 'Check your email for the OTP.';
+        }
+        otpSection.classList.add('show');
+      })
+      .catch(function() { otpSection.classList.add('show'); });
+  }
+}
+
+function statusBadge(s) {
+  var map = {
+    'Pending':'badge-pending','Confirmed':'badge-confirmed','Preparing':'badge-preparing',
+    'Out for Delivery':'badge-delivery','Delivered':'badge-delivered','Cancelled':'badge-cancelled'
+  };
+  return '<span class="badge ' + (map[s] || '') + '">' + esc(s) + '</span>';
+}
+
+function payBadge(s) {
+  var map = {
+    'Pending Verification':'badge-pay-pending','Verified':'badge-verified',
+    'Failed':'badge-failed','Pending Collection':'badge-pay-pending','Collected':'badge-collected'
+  };
+  return '<span class="badge ' + (map[s] || '') + '">' + esc(s) + '</span>';
+}
+
+function formatDate(d) {
+  if (!d) return '--';
+  try {
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    function p(n){ return n < 10 ? '0'+n : String(n); }
+    return p(dt.getDate())+'/'+p(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+p(dt.getHours())+':'+p(dt.getMinutes());
+  } catch(e){ return String(d); }
+}
+
+function copyOtp() {
+  var code = document.getElementById('otpCode').textContent;
+  if (!code || code === '----') return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(code);
+  } else {
+    var t = document.createElement('textarea');
+    t.value = code; document.body.appendChild(t); t.select();
+    document.execCommand('copy'); document.body.removeChild(t);
+  }
+  var btn = document.querySelector('.otp-copy-btn');
+  btn.textContent = 'Copied!';
+  setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
+}
+
+function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+// Cancel
+function openCancelConfirm() {
+  var orderId = document.getElementById('rOrderId').textContent;
+  document.getElementById('tcInfo').innerHTML =
+    'Order <strong>' + esc(orderId) + '</strong> will be cancelled.<br>' +
+    'You will receive a confirmation email.';
+  document.getElementById('tcDoBtn').disabled = false;
+  document.getElementById('tcDoBtn').textContent = 'Yes, Cancel';
+  document.getElementById('tcOverlay').style.display = 'flex';
+}
+
+function closeCancelConfirm() {
+  document.getElementById('tcOverlay').style.display = 'none';
+}
+
+async function confirmCancelOrder() {
+  var token   = localStorage.getItem('oos_cust_token');
+  var orderId = document.getElementById('rOrderId').textContent;
+  if (!token) {
+    closeCancelConfirm();
+    alert('Please sign in on the store first, then return here to cancel your order.');
+    return;
+  }
+  var btn = document.getElementById('tcDoBtn');
+  btn.disabled = true; btn.textContent = 'Cancelling...';
+  try {
+    var r = await apiFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', token: token, orderId: orderId })
+    });
+    btn.disabled = false; btn.textContent = 'Yes, Cancel';
+    closeCancelConfirm();
+    if (r && r.error) {
+      alert(r.error);
+    } else {
+      document.getElementById('cancelSection').classList.remove('show');
+      searchOrder();
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Yes, Cancel';
+    closeCancelConfirm();
+    alert('Error: ' + e.message);
+  }
+}
+
+// Review & Complaint
+async function initFeedbackSections(data) {
+  _currentOrderId   = data.order_id;
+  _currentOrderName = data.customer_name;
+
+  _selectedRating = 0;
+  updateStars();
+  document.getElementById('reviewComment').value = '';
+  document.getElementById('reviewMsg').style.display = 'none';
+  document.getElementById('reviewFormWrap').style.display = 'block';
+  document.getElementById('reviewDoneMsg').style.display = 'none';
+  document.getElementById('reviewSubmitBtn').disabled = false;
+
+  document.getElementById('cmpName').value         = data.customer_name || '';
+  document.getElementById('cmpEmail').value        = '';
+  document.getElementById('cmpPhone').value        = '';
+  document.getElementById('cmpSubject').value      = '';
+  document.getElementById('cmpDescription').value  = '';
+  document.getElementById('cmpMsg').style.display  = 'none';
+  document.getElementById('complaintForm').classList.remove('open');
+  document.getElementById('complaintChevron').textContent = '›';
+
+  if (data.order_status === 'Delivered') {
+    document.getElementById('reviewSection').style.display = 'block';
+    try {
+      var r = await apiFetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check-exists', orderId: data.order_id })
+      });
+      if (r && r.exists) {
+        document.getElementById('reviewFormWrap').style.display = 'none';
+        document.getElementById('reviewDoneMsg').style.display = 'block';
+      }
+    } catch(e) {}
+  } else {
+    document.getElementById('reviewSection').style.display = 'none';
+  }
+
+  document.getElementById('complaintSection').style.display = 'block';
+}
+
+function setRating(n) {
+  _selectedRating = n;
+  updateStars();
+}
+
+function updateStars() {
+  var btns = document.querySelectorAll('#starsRow .star-btn');
+  btns.forEach(function(btn, i) {
+    btn.style.color = i < _selectedRating ? '#f59e0b' : '#ddd';
+  });
+}
+
+async function submitReviewForm() {
+  var comment = document.getElementById('reviewComment').value.trim();
+  var msgEl   = document.getElementById('reviewMsg');
+  var btn     = document.getElementById('reviewSubmitBtn');
+
+  if (_selectedRating === 0) {
+    msgEl.textContent = 'Please select a star rating.';
+    msgEl.className = 'fb-msg error'; msgEl.style.display = 'block'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  msgEl.style.display = 'none';
+
+  try {
+    var r = await apiFetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submit', orderId: _currentOrderId,
+        customerName: _currentOrderName, rating: _selectedRating, comment: comment
+      })
+    });
+    btn.disabled = false; btn.textContent = 'Submit Review';
+    if (r && r.success) {
+      document.getElementById('reviewFormWrap').style.display = 'none';
+      document.getElementById('reviewDoneMsg').style.display = 'block';
+    } else {
+      msgEl.textContent = (r && r.error) || 'Submission failed. Please try again.';
+      msgEl.className = 'fb-msg error'; msgEl.style.display = 'block';
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Submit Review';
+    msgEl.textContent = 'Error: ' + e.message;
+    msgEl.className = 'fb-msg error'; msgEl.style.display = 'block';
+  }
+}
+
+function toggleComplaint() {
+  var form    = document.getElementById('complaintForm');
+  var chevron = document.getElementById('complaintChevron');
+  var isOpen  = form.classList.contains('open');
+  form.classList.toggle('open', !isOpen);
+  chevron.textContent = isOpen ? '›' : '‹';
+}
+
+async function submitComplaintForm() {
+  var name   = document.getElementById('cmpName').value.trim();
+  var email  = document.getElementById('cmpEmail').value.trim();
+  var phone  = document.getElementById('cmpPhone').value.trim();
+  var subj   = document.getElementById('cmpSubject').value;
+  var desc   = document.getElementById('cmpDescription').value.trim();
+  var msgEl  = document.getElementById('cmpMsg');
+  var btn    = document.getElementById('cmpSubmitBtn');
+
+  if (!name || !email || !subj || !desc) {
+    msgEl.textContent = 'Please fill in all required fields.';
+    msgEl.className = 'fb-msg error'; msgEl.style.display = 'block'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  msgEl.style.display = 'none';
+
+  try {
+    var r = await apiFetch('/api/complaints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submit', orderId: _currentOrderId,
+        customerName: name, email: email, phone: phone,
+        subject: subj, description: desc
+      })
+    });
+    btn.disabled = false; btn.textContent = 'Submit Complaint';
+    if (r && r.success) {
+      msgEl.textContent = 'Complaint submitted! ID: ' + r.complaintId + '. We will get back to you soon.';
+      msgEl.className = 'fb-msg success'; msgEl.style.display = 'block';
+      document.getElementById('cmpDescription').value = '';
+    } else {
+      msgEl.textContent = (r && r.error) || 'Submission failed. Please try again.';
+      msgEl.className = 'fb-msg error'; msgEl.style.display = 'block';
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Submit Complaint';
+    msgEl.textContent = 'Error: ' + e.message;
+    msgEl.className = 'fb-msg error'; msgEl.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>

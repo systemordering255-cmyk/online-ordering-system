@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cart &amp; Checkout</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
+.header{background:#4a90d9;color:#fff;padding:0 20px;display:flex;align-items:center;gap:16px;height:60px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.back-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:8px 16px;border-radius:20px;cursor:pointer;font-size:14px}
+.back-btn:hover{background:rgba(255,255,255,.35)}
+.header h1{font-size:20px;font-weight:700}
+.container{max-width:760px;margin:0 auto;padding:20px}
+.section{background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.section h2{font-size:17px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #eee}
+.cart-item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0}
+.cart-item:last-child{border-bottom:none}
+.item-img{width:60px;height:60px;border-radius:8px;object-fit:cover;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;overflow:hidden}
+.item-img img{width:100%;height:100%;object-fit:cover}
+.item-info{flex:1;min-width:0}
+.item-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-price{font-size:13px;color:#777;margin-top:2px}
+.qty-controls{display:flex;align-items:center;gap:8px}
+.qty-btn{width:28px;height:28px;border:1px solid #ddd;background:#fff;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.qty-btn:hover{background:#4a90d9;color:#fff;border-color:#4a90d9}
+.qty-num{font-size:15px;font-weight:600;min-width:24px;text-align:center}
+.item-total{font-size:15px;font-weight:700;color:#4a90d9;min-width:60px;text-align:right}
+.remove-btn{background:none;border:none;cursor:pointer;color:#ccc;font-size:18px;transition:color .2s;padding:4px}
+.remove-btn:hover{color:#f44336}
+.summary-row{display:flex;justify-content:space-between;padding:8px 0;font-size:14px;border-bottom:1px solid #f5f5f5}
+.summary-row:last-child{border-bottom:none;font-size:17px;font-weight:700;color:#4a90d9;padding-top:12px}
+.min-order-note{font-size:12px;color:#ff9800;margin-top:8px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:6px}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:11px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;outline:none;transition:border .2s;background:#fff}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:#4a90d9}
+.form-group textarea{resize:vertical;min-height:70px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.payment-options{display:flex;flex-direction:column;gap:10px}
+.pay-opt{border:2px solid #eee;border-radius:10px;padding:14px;cursor:pointer;display:flex;align-items:flex-start;gap:12px;transition:border .2s}
+.pay-opt:hover{border-color:#4a90d9}
+.pay-opt.selected{border-color:#4a90d9;background:#f0f7ff}
+.pay-opt input{margin-top:2px;accent-color:#4a90d9}
+.pay-opt-info{flex:1}
+.pay-opt-title{font-weight:600;font-size:14px}
+.pay-opt-desc{font-size:12px;color:#777;margin-top:3px}
+.upi-section{background:#f0f7ff;border-radius:10px;padding:16px;margin-top:12px;display:none;text-align:center}
+.upi-section.show{display:block}
+.upi-qr{max-width:180px;border-radius:8px;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.upi-id-row{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;font-weight:600;font-size:16px}
+.copy-btn{background:#4a90d9;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+.utr-input{margin-top:12px}
+.collect-options{display:flex;gap:10px}
+.collect-opt{flex:1;border:2px solid #eee;border-radius:10px;padding:14px;cursor:pointer;text-align:center;transition:border .2s}
+.collect-opt:hover{border-color:#4a90d9}
+.collect-opt.selected{border-color:#4a90d9;background:#f0f7ff}
+.collect-opt input{display:none}
+.co-icon{font-size:28px;margin-bottom:6px}
+.co-title{font-size:14px;font-weight:700}
+.co-desc{font-size:11px;color:#777;margin-top:3px}
+.submit-btn{width:100%;padding:16px;background:#4a90d9;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;transition:background .2s;margin-top:4px}
+.submit-btn:hover{background:#357abd}
+.submit-btn:disabled{background:#ccc;cursor:not-allowed}
+.error-msg{color:#f44336;font-size:13px;margin-top:8px;display:none}
+.empty-cart{text-align:center;padding:60px 20px;color:#aaa}
+.empty-cart a{color:#4a90d9;text-decoration:none;font-weight:600;margin-top:16px;display:block}
+@media(max-width:480px){.form-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <button class="back-btn" onclick="window.location.href='/index.html'">&#8592; Back</button>
+  <h1>Cart &amp; Checkout</h1>
+</header>
+
+<div class="container" id="mainContainer">
+
+  <div class="section" id="cartSection">
+    <h2>Your Items</h2>
+    <div id="cartItems"></div>
+  </div>
+
+  <div class="section" id="summarySection" style="display:none">
+    <h2>Order Summary</h2>
+    <div id="summaryRows"></div>
+    <div id="minOrderNote" class="min-order-note"></div>
+  </div>
+
+  <div class="section" id="checkoutSection" style="display:none">
+    <h2 id="checkoutTitle">Delivery Details</h2>
+    <form id="checkoutForm" onsubmit="submitOrder(event)">
+
+      <div class="form-group">
+        <label>Collection Method</label>
+        <div class="collect-options">
+          <label class="collect-opt selected" id="deliveryOpt" onclick="selectCollection('Delivery')">
+            <input type="radio" name="collection" value="Delivery" checked>
+            <div class="co-icon">&#128666;</div>
+            <div class="co-title">Delivery</div>
+            <div class="co-desc">Delivered to your address</div>
+          </label>
+          <label class="collect-opt" id="pickupOpt" onclick="selectCollection('Pickup')">
+            <input type="radio" name="collection" value="Pickup">
+            <div class="co-icon">&#127978;</div>
+            <div class="co-title">Pickup</div>
+            <div class="co-desc">Collect from store</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input id="custName" type="text" placeholder="Your name" required>
+        </div>
+        <div class="form-group">
+          <label>Phone *</label>
+          <input id="custPhone" type="tel" placeholder="10-digit number" pattern="[0-9]{10}" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Email *</label>
+        <input id="custEmail" type="email" placeholder="For order updates" required>
+      </div>
+      <div class="form-group" id="addressGroup">
+        <label>Delivery Address *</label>
+        <textarea id="custAddress" placeholder="Full address incl. flat, street, landmark..." required></textarea>
+      </div>
+      <div class="form-group">
+        <label>Special Instructions (optional)</label>
+        <textarea id="custNotes" placeholder="Allergies, special requests..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Payment Method</label>
+        <div class="payment-options">
+          <label class="pay-opt selected" id="upiOpt" onclick="selectPayment('UPI')">
+            <input type="radio" name="payment" value="UPI" checked>
+            <div class="pay-opt-info">
+              <div class="pay-opt-title">&#128241; UPI / QR Code</div>
+              <div class="pay-opt-desc">Pay via any UPI app (GPay, PhonePe, Paytm...)</div>
+            </div>
+          </label>
+          <label class="pay-opt" id="codOpt" onclick="selectPayment('COD')">
+            <input type="radio" name="payment" value="COD">
+            <div class="pay-opt-info">
+              <div class="pay-opt-title">&#128181; Cash / Pay on Delivery</div>
+              <div class="pay-opt-desc">Pay with cash when your order arrives</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="upi-section show" id="upiSection">
+        <p style="font-size:13px;color:#555;margin-bottom:12px">Scan the QR code or use the UPI ID below to pay</p>
+        <img id="upiQR" class="upi-qr" src="" alt="QR Code" style="display:none">
+        <div class="upi-id-row">
+          <span id="upiIdText">--</span>
+          <button type="button" class="copy-btn" onclick="copyUPI()">Copy</button>
+        </div>
+        <p style="font-size:13px;font-weight:600;color:#4a90d9;margin-bottom:6px">
+          Amount to pay: <span id="upiAmount">Rs.0</span>
+        </p>
+        <div class="utr-input">
+          <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:6px">UTR / Transaction Reference Number *</label>
+          <input id="utrInput" type="text" placeholder="Enter 12-digit UTR or ref number">
+        </div>
+      </div>
+
+      <div id="formError" class="error-msg"></div>
+      <button type="submit" class="submit-btn" id="submitBtn">Place Order</button>
+    </form>
+  </div>
+
+</div>
+
+<script>
+var cart = {}, settings = {};
+var selectedCollection = 'Delivery';
+var selectedPayment = 'UPI';
+
+window.onload = async function() {
+  var name  = localStorage.getItem('oos_cust_name');
+  var phone = localStorage.getItem('oos_cust_phone');
+  var email = localStorage.getItem('oos_cust_email');
+  if (name)  document.getElementById('custName').value  = name;
+  if (phone) document.getElementById('custPhone').value = phone;
+  if (email) document.getElementById('custEmail').value = email;
+
+  try {
+    var r = await fetch('/api/settings');
+    settings = await r.json();
+    populateUPI();
+  } catch(e) {}
+
+  loadCart();
+};
+
+function loadCart() {
+  try { cart = JSON.parse(localStorage.getItem('oos_cart') || '{}'); } catch(e){ cart = {}; }
+  renderCart();
+}
+function saveCart() { localStorage.setItem('oos_cart', JSON.stringify(cart)); }
+
+function renderCart() {
+  var items = Object.values(cart).filter(function(i){ return i.qty > 0; });
+  if (!items.length) {
+    document.getElementById('cartSection').innerHTML =
+      '<div class="empty-cart">' +
+      '<p style="font-size:48px">&#128722;</p>' +
+      '<p style="font-size:18px;font-weight:600;margin-top:12px">Your cart is empty</p>' +
+      '<a href="/index.html">Browse Products &#8594;</a></div>';
+    document.getElementById('summarySection').style.display = 'none';
+    document.getElementById('checkoutSection').style.display = 'none';
+    return;
+  }
+  var sym = settings.currency_symbol || 'Rs.';
+  var html = items.map(function(item) {
+    var imgHtml = (item.image_url || item.imageUrl)
+      ? '<img src="' + escAttr(item.image_url || item.imageUrl) + '" alt="">'
+      : '&#128722;';
+    return '<div class="cart-item">' +
+      '<div class="item-img">' + imgHtml + '</div>' +
+      '<div class="item-info">' +
+        '<div class="item-name">' + esc(item.name) + '</div>' +
+        '<div class="item-price">' + sym + parseFloat(item.price).toFixed(2) + ' each</div>' +
+      '</div>' +
+      '<div class="qty-controls">' +
+        '<button type="button" class="qty-btn" onclick="changeQty(\'' + item.id + '\',-1)">-</button>' +
+        '<span class="qty-num">' + item.qty + '</span>' +
+        '<button type="button" class="qty-btn" onclick="changeQty(\'' + item.id + '\',1)">+</button>' +
+      '</div>' +
+      '<div class="item-total">' + sym + (parseFloat(item.price) * item.qty).toFixed(2) + '</div>' +
+      '<button type="button" class="remove-btn" onclick="removeItem(\'' + item.id + '\')">&#215;</button>' +
+    '</div>';
+  }).join('');
+  document.getElementById('cartItems').innerHTML = html;
+  renderSummary();
+  document.getElementById('summarySection').style.display = 'block';
+  document.getElementById('checkoutSection').style.display = 'block';
+}
+
+function renderSummary() {
+  var sym        = settings.currency_symbol || 'Rs.';
+  var deliveryFee = selectedCollection === 'Pickup' ? 0 : (parseFloat(settings.delivery_fee) || 0);
+  var minOrder   = parseFloat(settings.minimum_order) || 0;
+  var subtotal   = Object.values(cart).reduce(function(s,i){ return s + parseFloat(i.price) * i.qty; }, 0);
+  var total      = subtotal + deliveryFee;
+
+  document.getElementById('summaryRows').innerHTML =
+    '<div class="summary-row"><span>Subtotal</span><span>' + sym + subtotal.toFixed(2) + '</span></div>' +
+    '<div class="summary-row"><span>Delivery Fee</span><span>' + sym + deliveryFee.toFixed(2) + '</span></div>' +
+    '<div class="summary-row"><span>Total</span><span>' + sym + total.toFixed(2) + '</span></div>';
+
+  document.getElementById('upiAmount').textContent = sym + total.toFixed(2);
+
+  var note = subtotal < minOrder && minOrder > 0
+    ? 'Minimum order is ' + sym + minOrder + '. Add ' + sym + (minOrder - subtotal).toFixed(2) + ' more.'
+    : '';
+  document.getElementById('minOrderNote').textContent = note;
+}
+
+function changeQty(id, delta) {
+  if (!cart[id]) return;
+  cart[id].qty += delta;
+  if (cart[id].qty <= 0) delete cart[id];
+  saveCart(); renderCart();
+}
+function removeItem(id) { delete cart[id]; saveCart(); renderCart(); }
+
+function selectCollection(method) {
+  selectedCollection = method;
+  document.getElementById('deliveryOpt').classList.toggle('selected', method === 'Delivery');
+  document.getElementById('pickupOpt').classList.toggle('selected', method === 'Pickup');
+  var addrInput = document.getElementById('custAddress');
+  if (method === 'Pickup') {
+    document.getElementById('addressGroup').style.display = 'none';
+    addrInput.required = false; addrInput.value = '';
+    document.getElementById('checkoutTitle').textContent = 'Your Details';
+  } else {
+    document.getElementById('addressGroup').style.display = 'block';
+    addrInput.required = true;
+    document.getElementById('checkoutTitle').textContent = 'Delivery Details';
+  }
+  renderSummary();
+}
+
+function selectPayment(method) {
+  selectedPayment = method;
+  document.getElementById('upiOpt').classList.toggle('selected', method === 'UPI');
+  document.getElementById('codOpt').classList.toggle('selected', method === 'COD');
+  document.getElementById('upiSection').classList.toggle('show', method === 'UPI');
+}
+
+function populateUPI() {
+  if (settings.upi_qr_url) {
+    var qr = document.getElementById('upiQR');
+    qr.src = settings.upi_qr_url; qr.style.display = 'block';
+  }
+  document.getElementById('upiIdText').textContent = settings.upi_id || '--';
+}
+
+function copyUPI() {
+  var id = settings.upi_id || '';
+  if (navigator.clipboard) navigator.clipboard.writeText(id);
+  else { var t=document.createElement('textarea');t.value=id;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t); }
+  document.querySelector('.copy-btn').textContent = 'Copied!';
+  setTimeout(function(){ document.querySelector('.copy-btn').textContent = 'Copy'; }, 1500);
+}
+
+async function submitOrder(e) {
+  e.preventDefault();
+  var err = document.getElementById('formError');
+  err.style.display = 'none';
+
+  var token = localStorage.getItem('oos_cust_token');
+  if (!token) {
+    sessionStorage.setItem('oos_after_login', 'cart');
+    window.location.href = '/index.html';
+    return;
+  }
+
+  var items = Object.values(cart).filter(function(i){ return i.qty > 0; });
+  if (!items.length) { showError('Your cart is empty.'); return; }
+
+  var minOrder = parseFloat(settings.minimum_order) || 0;
+  var subtotal = items.reduce(function(s,i){ return s + parseFloat(i.price) * i.qty; }, 0);
+  if (subtotal < minOrder && minOrder > 0) {
+    showError('Minimum order amount is ' + (settings.currency_symbol||'Rs.') + minOrder + '.');
+    return;
+  }
+
+  var utr = document.getElementById('utrInput').value.trim();
+  if (selectedPayment === 'UPI' && !utr) {
+    showError('Please enter your UTR / Transaction Reference Number.');
+    return;
+  }
+
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'Placing order...';
+
+  var orderData = {
+    action:           'place',
+    customerName:     document.getElementById('custName').value.trim(),
+    phone:            document.getElementById('custPhone').value.trim(),
+    email:            document.getElementById('custEmail').value.trim(),
+    address:          selectedCollection === 'Pickup' ? 'Store Pickup' : document.getElementById('custAddress').value.trim(),
+    notes:            document.getElementById('custNotes').value.trim(),
+    paymentMethod:    selectedPayment,
+    collectionMethod: selectedCollection,
+    utr:              utr,
+    items:            items.map(function(i){ return { id: i.id, name: i.name, qty: i.qty, price: parseFloat(i.price) }; })
+  };
+
+  try {
+    var r = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
+    var result = await r.json();
+    if (result.success) {
+      localStorage.removeItem('oos_cart');
+      localStorage.setItem('oos_last_order', JSON.stringify({
+        orderId: result.orderId, total: result.total, paymentMethod: orderData.paymentMethod
+      }));
+      window.location.href = '/index.html';
+    } else {
+      showError(result.error || 'Failed to place order. Please try again.');
+      btn.disabled = false; btn.textContent = 'Place Order';
+    }
+  } catch(ex) {
+    showError('Network error. Please try again.');
+    btn.disabled = false; btn.textContent = 'Place Order';
+  }
+}
+
+function showError(msg) {
+  var err = document.getElementById('formError');
+  err.textContent = msg; err.style.display = 'block';
+  err.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

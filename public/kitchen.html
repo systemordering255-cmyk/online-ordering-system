@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kitchen Board</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;min-height:100vh}
+
+#pinScreen{display:flex;align-items:center;justify-content:center;
+  min-height:100vh;background:linear-gradient(135deg,#111827,#1f2937)}
+.pin-card{background:#1f2937;border-radius:20px;padding:40px 36px;
+  width:100%;max-width:340px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.pin-card h1{font-size:32px;margin-bottom:6px}
+.pin-card p{color:#9ca3af;font-size:14px;margin-bottom:28px}
+.pin-display{background:#111827;border-radius:12px;padding:16px 24px;
+  font-size:32px;letter-spacing:12px;min-height:64px;display:flex;
+  align-items:center;justify-content:center;margin-bottom:20px;
+  border:2px solid #374151;color:#f9fafb;font-family:monospace}
+.pin-display.error{border-color:#ef4444;color:#ef4444;animation:shake .3s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.num-btn{background:#374151;border:none;color:#f9fafb;border-radius:10px;
+  padding:18px;font-size:20px;font-weight:700;cursor:pointer;
+  transition:background .15s;-webkit-tap-highlight-color:transparent}
+.num-btn:hover{background:#4b5563}
+.num-btn:active{background:#6b7280;transform:scale(.96)}
+.num-btn.del{background:#1f2937;border:1px solid #374151;font-size:18px}
+.num-btn.enter{background:#3b82f6;grid-column:2/4}
+.num-btn.enter:hover{background:#2563eb}
+
+#appShell{display:none;flex-direction:column;min-height:100vh}
+.topbar{background:#1f2937;padding:0 20px;height:56px;display:flex;
+  align-items:center;justify-content:space-between;
+  border-bottom:1px solid #374151;position:sticky;top:0;z-index:100}
+.topbar .brand{font-size:17px;font-weight:700;display:flex;align-items:center;gap:10px}
+.topbar .right{display:flex;align-items:center;gap:12px}
+.refresh-info{font-size:12px;color:#6b7280}
+.refresh-btn{background:#374151;border:none;color:#f9fafb;padding:7px 14px;
+  border-radius:6px;cursor:pointer;font-size:13px;transition:background .2s}
+.refresh-btn:hover{background:#4b5563}
+.logout-btn{background:transparent;border:1px solid #374151;color:#9ca3af;
+  padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px}
+
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px;flex:1;align-items:start}
+
+.col{border-radius:14px;overflow:hidden;background:#1f2937;border:1px solid #374151}
+.col-header{padding:14px 16px;display:flex;align-items:center;
+  justify-content:space-between;border-bottom:1px solid #374151}
+.col-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.col-count{background:rgba(255,255,255,.1);padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700}
+.col-body{padding:12px;display:flex;flex-direction:column;gap:10px;min-height:120px}
+.col-empty{text-align:center;padding:30px 12px;color:#6b7280;font-size:13px}
+
+.col-pending   .col-header{background:rgba(245,158,11,.1);border-bottom-color:rgba(245,158,11,.2)}
+.col-pending   .col-title{color:#fbbf24}
+.col-confirmed .col-header{background:rgba(59,130,246,.1);border-bottom-color:rgba(59,130,246,.2)}
+.col-confirmed .col-title{color:#60a5fa}
+.col-preparing .col-header{background:rgba(168,85,247,.1);border-bottom-color:rgba(168,85,247,.2)}
+.col-preparing .col-title{color:#c084fc}
+.col-delivery  .col-header{background:rgba(34,197,94,.1);border-bottom-color:rgba(34,197,94,.2)}
+.col-delivery  .col-title{color:#4ade80}
+
+.order-card{background:#111827;border-radius:10px;padding:14px;border:1px solid #374151;transition:border-color .2s}
+.order-card:hover{border-color:#6b7280}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.order-id{font-family:monospace;font-size:12px;color:#9ca3af}
+.order-time{font-size:11px;color:#6b7280}
+.customer-name{font-size:14px;font-weight:700;color:#f9fafb;margin-bottom:6px}
+.order-items{font-size:12px;color:#9ca3af;line-height:1.6;margin-bottom:10px}
+.order-total{font-size:14px;font-weight:700;color:#3b82f6;margin-bottom:12px}
+.payment-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-left:6px}
+.pay-cod{background:rgba(245,158,11,.15);color:#fbbf24}
+.pay-upi{background:rgba(59,130,246,.15);color:#60a5fa}
+
+.advance-btn{width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;
+  font-weight:700;cursor:pointer;transition:all .2s;-webkit-tap-highlight-color:transparent}
+.col-pending   .advance-btn{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3)}
+.col-confirmed .advance-btn{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3)}
+.col-preparing .advance-btn{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.3)}
+.col-delivery  .advance-btn{background:rgba(16,185,129,.15);color:#34d399;border:1px solid rgba(16,185,129,.3)}
+.advance-btn:hover{filter:brightness(1.2)}
+.advance-btn:active{transform:scale(.97)}
+.advance-btn:disabled{opacity:.4;cursor:not-allowed}
+.advance-btn.otp-trigger{background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+.advance-btn.cash-collect{background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+
+.age-bar{height:3px;border-radius:2px;margin-bottom:10px;overflow:hidden;background:#374151}
+.age-fill{height:100%;border-radius:2px;transition:width .5s}
+.age-ok{background:#22c55e}.age-warn{background:#f59e0b}.age-late{background:#ef4444}
+
+.order-card.new-order{animation:neworder 1s ease 3}
+@keyframes neworder{0%,100%{border-color:#374151}50%{border-color:#fbbf24;box-shadow:0 0 12px rgba(251,191,36,.3)}}
+
+.cancel-btn{display:block;width:100%;padding:9px;border-radius:8px;font-size:13px;
+  font-weight:700;cursor:pointer;margin-top:8px;background:#7f1d1d;color:#fca5a5;
+  border:1px solid #ef4444;transition:all .2s;-webkit-tap-highlight-color:transparent}
+.cancel-btn:hover{background:#991b1b;color:#fff}
+.cancel-btn:active{transform:scale(.97)}
+
+.cancel-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.cancel-modal{background:#1f2937;border:1px solid #374151;border-radius:20px;
+  padding:32px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.6)}
+.cancel-modal h2{font-size:18px;font-weight:700;color:#f9fafb;margin-bottom:6px}
+.cancel-modal-sub{font-size:13px;color:#9ca3af;margin-bottom:18px}
+.cancel-reason-select{width:100%;background:#111827;border:2px solid #374151;color:#f9fafb;
+  border-radius:10px;padding:11px 14px;font-size:14px;outline:none;margin-bottom:16px;
+  transition:border-color .2s;appearance:none;-webkit-appearance:none}
+.cancel-reason-select:focus{border-color:#ef4444}
+.cancel-modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cancel-no-btn{background:transparent;border:1px solid #374151;color:#9ca3af;
+  border-radius:8px;padding:12px;font-size:14px;cursor:pointer}
+.cancel-no-btn:hover{border-color:#6b7280;color:#f9fafb}
+.cancel-yes-btn{background:#dc2626;border:none;color:#fff;border-radius:8px;
+  padding:12px;font-size:14px;font-weight:700;cursor:pointer}
+.cancel-yes-btn:hover:not(:disabled){background:#b91c1c}
+.cancel-yes-btn:disabled{opacity:.5;cursor:not-allowed}
+
+.otp-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.otp-modal{background:#1f2937;border:1px solid #374151;border-radius:20px;
+  padding:32px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.6)}
+.otp-modal-icon{font-size:40px;margin-bottom:10px}
+.otp-modal h2{font-size:20px;font-weight:700;margin-bottom:4px;color:#f9fafb}
+.otp-modal-sub{font-size:12px;color:#6b7280;margin-bottom:6px}
+.otp-modal-orderid{font-family:monospace;font-size:11px;color:#4b5563;margin-bottom:18px}
+.otp-modal-hint{font-size:14px;color:#d1d5db;line-height:1.5;margin-bottom:18px}
+.otp-field{width:100%;background:#111827;border:2px solid #374151;color:#f9fafb;
+  border-radius:12px;padding:14px;font-size:30px;letter-spacing:10px;
+  font-family:monospace;text-align:center;outline:none;margin-bottom:10px;
+  transition:border-color .2s;-webkit-appearance:none}
+.otp-field:focus{border-color:#3b82f6}
+.otp-error-msg{color:#fca5a5;font-size:13px;margin-bottom:12px;min-height:20px;line-height:1.4}
+.otp-modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.otp-resend-btn{background:transparent;border:1px solid #374151;color:#9ca3af;
+  border-radius:8px;padding:12px;font-size:13px;cursor:pointer}
+.otp-resend-btn:hover:not(:disabled){border-color:#6b7280;color:#f9fafb}
+.otp-resend-btn:disabled{opacity:.4;cursor:not-allowed}
+.otp-verify-btn{background:#22c55e;border:none;color:#fff;border-radius:8px;
+  padding:12px;font-size:13px;font-weight:700;cursor:pointer}
+.otp-verify-btn:hover:not(:disabled){background:#16a34a}
+.otp-verify-btn:disabled{opacity:.5;cursor:not-allowed}
+.otp-cancel-link{background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;padding:4px 8px}
+.otp-cancel-link:hover{color:#9ca3af}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#1f2937;border:1px solid #374151;color:#f9fafb;padding:10px 20px;
+  border-radius:8px;font-size:14px;opacity:0;transition:all .3s;
+  pointer-events:none;z-index:999;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.success{background:#064e3b;border-color:#10b981;color:#6ee7b7}
+.toast.error{background:#450a0a;border-color:#ef4444;color:#fca5a5}
+.loading{text-align:center;padding:40px;color:#6b7280;font-size:14px}
+
+@media(max-width:900px){.board{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:500px){.board{grid-template-columns:1fr;padding:12px}}
+</style>
+</head>
+<body>
+
+<div id="pinScreen">
+  <div class="pin-card">
+    <div style="font-size:48px;margin-bottom:8px">&#x1F468;&#x200D;&#x1F373;</div>
+    <h1>Kitchen Board</h1>
+    <p>Enter your kitchen PIN to continue</p>
+    <div class="pin-display" id="pinDisplay">____</div>
+    <div class="numpad">
+      <button class="num-btn" onclick="pinPress('1')">1</button>
+      <button class="num-btn" onclick="pinPress('2')">2</button>
+      <button class="num-btn" onclick="pinPress('3')">3</button>
+      <button class="num-btn" onclick="pinPress('4')">4</button>
+      <button class="num-btn" onclick="pinPress('5')">5</button>
+      <button class="num-btn" onclick="pinPress('6')">6</button>
+      <button class="num-btn" onclick="pinPress('7')">7</button>
+      <button class="num-btn" onclick="pinPress('8')">8</button>
+      <button class="num-btn" onclick="pinPress('9')">9</button>
+      <button class="num-btn del" onclick="pinDel()">&#9003;</button>
+      <button class="num-btn" onclick="pinPress('0')">0</button>
+      <button class="num-btn enter" onclick="pinEnter()">Enter &#10003;</button>
+    </div>
+  </div>
+</div>
+
+<div id="appShell" style="display:none;flex-direction:column">
+  <div class="topbar">
+    <div class="brand">
+      <span>&#x1F468;&#x200D;&#x1F373;</span>
+      <span id="boardTitle">Kitchen Board</span>
+    </div>
+    <div class="right">
+      <span class="refresh-info" id="refreshInfo">Auto-refresh: 30s</span>
+      <button class="refresh-btn" onclick="loadBoard()">&#8635; Refresh</button>
+      <button class="logout-btn" onclick="doLogout()">Lock</button>
+    </div>
+  </div>
+  <div class="board" id="board">
+    <div class="loading" style="grid-column:1/-1">Loading orders&#8230;</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="cancel-modal-overlay" id="cancelModal" style="display:none">
+  <div class="cancel-modal">
+    <h2>Cancel Order?</h2>
+    <p class="cancel-modal-sub" id="cancelModalOrderId"></p>
+    <select class="cancel-reason-select" id="cancelReasonSelect">
+      <option value="">Select a reason...</option>
+      <option value="Out of stock">Out of stock</option>
+      <option value="Customer request">Customer request</option>
+      <option value="Cannot fulfill">Cannot fulfill</option>
+      <option value="Duplicate order">Duplicate order</option>
+      <option value="Other">Other</option>
+    </select>
+    <div class="cancel-modal-btns">
+      <button class="cancel-no-btn" onclick="closeCancelModal()">Keep Order</button>
+      <button class="cancel-yes-btn" id="cancelConfirmBtn" onclick="confirmCancel()">Cancel Order</button>
+    </div>
+  </div>
+</div>
+
+<div class="otp-modal-overlay" id="otpModal" style="display:none">
+  <div class="otp-modal">
+    <div class="otp-modal-icon">&#x1F510;</div>
+    <h2>Delivery Verification</h2>
+    <p class="otp-modal-sub">OTP-based delivery confirmation</p>
+    <p class="otp-modal-orderid" id="otpModalOrderId"></p>
+    <p class="otp-modal-hint">
+      Ask the customer for the <strong>6-digit OTP</strong> sent to their email.
+      Enter it below to confirm delivery.
+    </p>
+    <input class="otp-field" id="otpField" type="text" inputmode="numeric"
+           maxlength="6" placeholder="000000" autocomplete="off"
+           oninput="this.value=this.value.replace(/\D/g,'')"
+           onkeydown="if(event.key==='Enter')submitOtp()">
+    <div class="otp-error-msg" id="otpErrorMsg"></div>
+    <div class="otp-modal-btns">
+      <button class="otp-resend-btn" id="otpResendBtn" onclick="resendOtp()">&#8635; Resend OTP</button>
+      <button class="otp-verify-btn" id="otpVerifyBtn" onclick="submitOtp()">&#10003; Verify &amp; Deliver</button>
+    </div>
+    <button class="otp-cancel-link" onclick="closeOtpModal()">Cancel</button>
+  </div>
+</div>
+
+<script>
+var kitchenPin = '';
+var pinInput   = '';
+var refreshTimer, countdownTimer, secondsLeft = 30;
+var knownOrderIds = [];
+
+async function apiFetch(url, options) {
+  var res = await fetch(url, options);
+  return res.json();
+}
+
+function pinPress(d) { if (pinInput.length >= 6) return; pinInput += d; updatePinDisplay(); }
+function pinDel() { pinInput = pinInput.slice(0, -1); updatePinDisplay(); }
+function updatePinDisplay() {
+  var dots = pinInput.replace(/./g, '*');
+  document.getElementById('pinDisplay').textContent = dots + '____'.slice(dots.length);
+  document.getElementById('pinDisplay').classList.remove('error');
+}
+
+async function pinEnter() {
+  if (!pinInput) return;
+  kitchenPin = pinInput;
+  try {
+    var r = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get-orders', pin: kitchenPin })
+    });
+    if (r && r.error) {
+      document.getElementById('pinDisplay').classList.add('error');
+      document.getElementById('pinDisplay').textContent = 'Wrong PIN';
+      setTimeout(function(){ pinInput = ''; updatePinDisplay(); }, 1000);
+    } else {
+      showApp(r);
+    }
+  } catch(e) {
+    document.getElementById('pinDisplay').classList.add('error');
+    pinInput = ''; updatePinDisplay();
+  }
+}
+
+function doLogout() {
+  clearInterval(refreshTimer); clearInterval(countdownTimer);
+  kitchenPin = ''; pinInput = '';
+  updatePinDisplay();
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('pinScreen').style.display = 'flex';
+}
+
+function showApp(orders) {
+  document.getElementById('pinScreen').style.display = 'none';
+  var shell = document.getElementById('appShell');
+  shell.style.display = 'flex';
+  renderBoard(orders);
+  startAutoRefresh();
+  fetch('/api/settings').then(function(r){ return r.json(); }).then(function(s){
+    if (s && s.business_name)
+      document.getElementById('boardTitle').textContent = s.business_name + '  Kitchen';
+  }).catch(function(){});
+}
+
+async function loadBoard() {
+  try {
+    var orders = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get-orders', pin: kitchenPin })
+    });
+    if (orders && orders.error) { showToast(orders.error, 'error'); return; }
+    renderBoard(orders);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function startAutoRefresh() {
+  secondsLeft = 30;
+  clearInterval(refreshTimer); clearInterval(countdownTimer);
+  refreshTimer   = setInterval(function(){ loadBoard(); secondsLeft = 30; }, 30000);
+  countdownTimer = setInterval(function(){
+    secondsLeft--;
+    document.getElementById('refreshInfo').textContent = 'Auto-refresh: ' + secondsLeft + 's';
+    if (secondsLeft <= 0) secondsLeft = 30;
+  }, 1000);
+}
+
+var COLS = [
+  { key: 'Pending',          cls: 'col-pending',   icon: '', label: 'Pending',          next: 'Confirm Order' },
+  { key: 'Confirmed',        cls: 'col-confirmed',  icon: '', label: 'Confirmed',         next: String.fromCodePoint(0x1F468,0x200D,0x1F373) + ' Start Preparing' },
+  { key: 'Preparing',        cls: 'col-preparing',  icon: String.fromCodePoint(0x1F468,0x200D,0x1F373), label: 'Preparing',         next: ' Out for Delivery' },
+  { key: 'Out for Delivery', cls: 'col-delivery',   icon: '', label: 'Out for Delivery',  next: ' Mark Delivered' }
+];
+
+function renderBoard(orders) {
+  var currentIds  = orders.map(function(o){ return o.order_id; });
+  var isFirstLoad = knownOrderIds.length === 0;
+  var newIds      = currentIds.filter(function(id){ return knownOrderIds.indexOf(id) === -1; });
+  if (!isFirstLoad && newIds.length) {
+    showToast(newIds.length + ' new order' + (newIds.length > 1 ? 's' : '') + '!', 'success');
+    playBeep();
+  }
+  knownOrderIds = currentIds;
+
+  var html = COLS.map(function(col) {
+    var colOrders = orders.filter(function(o){ return o.order_status === col.key; });
+    return '<div class="col ' + col.cls + '">' +
+      '<div class="col-header">' +
+        '<div class="col-title">' + col.icon + ' ' + col.label + '</div>' +
+        '<span class="col-count">' + colOrders.length + '</span>' +
+      '</div>' +
+      '<div class="col-body">' +
+        (colOrders.length === 0
+          ? '<div class="col-empty">No orders</div>'
+          : colOrders.map(function(o){ return orderCard(o, col); }).join('')
+        ) +
+      '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('board').innerHTML = html;
+
+  if (!isFirstLoad) {
+    newIds.forEach(function(id){
+      document.querySelectorAll('[data-order-id="' + id + '"]').forEach(function(c){ c.classList.add('new-order'); });
+    });
+  }
+}
+
+function orderCard(o, col) {
+  var items   = Array.isArray(o.items_json) ? o.items_json : [];
+  var itemStr = items.map(function(i){ return i.name + ' x' + i.qty; }).join(', ');
+  var ageMin  = getAgeMinutes(o.created_at);
+  var ageCls  = ageMin < 15 ? 'age-ok' : ageMin < 30 ? 'age-warn' : 'age-late';
+  var agePct  = Math.min(100, (ageMin / 45) * 100);
+  var payTag  = o.payment_method === 'COD'
+    ? '<span class="payment-tag pay-cod">COD</span>'
+    : '<span class="payment-tag pay-upi">UPI</span>';
+  var collectTag = (o.collection_method === 'Pickup')
+    ? '<span class="payment-tag" style="background:rgba(168,85,247,.15);color:#c084fc"> Pickup</span>'
+    : '<span class="payment-tag" style="background:rgba(34,197,94,.15);color:#4ade80"> Delivery</span>';
+
+  var btnHtml = '';
+  if (col.key === 'Out for Delivery') {
+    if (o.payment_method === 'COD' && o.payment_status !== 'Collected') {
+      btnHtml = '<button class="advance-btn cash-collect" onclick="markCashCollected(\'' + esc(o.order_id) + '\',this)">&#128176; Cash Collected</button>';
+    } else {
+      btnHtml = '<button class="advance-btn otp-trigger" onclick="openOtpModal(\'' + esc(o.order_id) + '\')">&#128273; Verify OTP &amp; Deliver</button>';
+    }
+  } else {
+    btnHtml = '<button class="advance-btn" onclick="advance(\'' + esc(o.order_id) + '\',this)">' + col.next + '</button>' +
+              '<button class="cancel-btn" onclick="openCancelModal(\'' + esc(o.order_id) + '\')">Cancel Order</button>';
+  }
+
+  return '<div class="order-card" data-order-id="' + esc(o.order_id) + '">' +
+    '<div class="age-bar"><div class="age-fill ' + ageCls + '" style="width:' + agePct + '%"></div></div>' +
+    '<div class="card-top">' +
+      '<span class="order-id">' + esc(o.order_id) + '</span>' +
+      '<span class="order-time">' + shortDate(o.created_at) + '</span>' +
+    '</div>' +
+    '<div class="customer-name">' + esc(o.customer_name) + '</div>' +
+    '<div class="order-items">' + esc(itemStr) + '</div>' +
+    '<div class="order-total">Rs.' + parseFloat(o.total).toFixed(2) + payTag + collectTag + '</div>' +
+    btnHtml +
+  '</div>';
+}
+
+async function advance(orderId, btn) {
+  var origText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Updating...';
+  try {
+    var r = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'advance-status', pin: kitchenPin, orderId: orderId })
+    });
+    if (r && r.error === 'OTP_REQUIRED') {
+      btn.disabled = false; btn.textContent = origText;
+      openOtpModal(orderId);
+    } else if (r && r.error === 'PAYMENT_NOT_VERIFIED') {
+      showToast('Cannot dispatch -- online payment not yet confirmed by admin.', 'error');
+      btn.disabled = false; btn.textContent = origText;
+    } else if (r && r.error) {
+      showToast(r.error, 'error');
+      btn.disabled = false; btn.textContent = 'Retry';
+    } else {
+      showToast(r.otpSent ? 'Dispatched! OTP sent to customer.' : 'Order updated!', 'success');
+      loadBoard();
+    }
+  } catch(e) {
+    showToast(e.message, 'error');
+    btn.disabled = false; btn.textContent = origText;
+  }
+}
+
+async function markCashCollected(orderId, btn) {
+  btn.disabled = true; btn.textContent = 'Confirming...';
+  try {
+    var r = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark-cash-collected', pin: kitchenPin, orderId: orderId })
+    });
+    if (r && r.error) {
+      showToast(r.error, 'error'); btn.disabled = false; btn.textContent = 'Cash Collected';
+    } else {
+      showToast('Cash collected! OTP button now available.', 'success');
+      loadBoard();
+    }
+  } catch(e) {
+    showToast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Cash Collected';
+  }
+}
+
+var _otpOrderId = '';
+function openOtpModal(orderId) {
+  _otpOrderId = orderId;
+  document.getElementById('otpModalOrderId').textContent = 'Order: ' + orderId;
+  document.getElementById('otpField').value = '';
+  document.getElementById('otpErrorMsg').textContent = '';
+  document.getElementById('otpVerifyBtn').disabled = false;
+  document.getElementById('otpVerifyBtn').textContent = 'Verify & Deliver';
+  document.getElementById('otpResendBtn').disabled = false;
+  document.getElementById('otpResendBtn').textContent = 'Resend OTP';
+  document.getElementById('otpModal').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('otpField').focus(); }, 80);
+}
+function closeOtpModal() {
+  document.getElementById('otpModal').style.display = 'none';
+  _otpOrderId = '';
+}
+
+async function submitOtp() {
+  var otp   = document.getElementById('otpField').value.trim();
+  var errEl = document.getElementById('otpErrorMsg');
+  if (otp.length !== 6) { errEl.textContent = 'Please enter the complete 6-digit OTP.'; return; }
+  var vBtn = document.getElementById('otpVerifyBtn');
+  vBtn.disabled = true; vBtn.textContent = 'Verifying...'; errEl.textContent = '';
+  try {
+    var r = await apiFetch('/api/delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'verify-otp', pin: kitchenPin, orderId: _otpOrderId, otp: otp })
+    });
+    vBtn.disabled = false; vBtn.textContent = 'Verify & Deliver';
+    if (r && r.success) {
+      closeOtpModal();
+      showToast('Order delivered! OTP verified.', 'success');
+      loadBoard();
+    } else if (r && r.error === 'OTP_EXPIRED') {
+      errEl.textContent = 'OTP expired. Click "Resend OTP" to send a new one to the customer.';
+    } else if (r && r.error === 'OTP_INVALID') {
+      errEl.textContent = 'Incorrect OTP. Please check with the customer and try again.';
+      document.getElementById('otpField').value = '';
+      document.getElementById('otpField').focus();
+    } else if (r && r.error === 'OTP_REQUIRED') {
+      errEl.textContent = 'No OTP found. Click "Resend OTP" to generate one.';
+    } else {
+      errEl.textContent = (r && r.error) ? r.error : 'Verification failed. Please try again.';
+    }
+  } catch(e) {
+    vBtn.disabled = false; vBtn.textContent = 'Verify & Deliver';
+    errEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function resendOtp() {
+  var rBtn  = document.getElementById('otpResendBtn');
+  var errEl = document.getElementById('otpErrorMsg');
+  rBtn.disabled = true; rBtn.textContent = 'Sending...'; errEl.textContent = '';
+  try {
+    var r = await apiFetch('/api/delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resend-otp', pin: kitchenPin, orderId: _otpOrderId })
+    });
+    rBtn.disabled = false; rBtn.textContent = 'Resend OTP';
+    if (r && r.success) {
+      showToast('New OTP sent to customer.', 'success');
+      document.getElementById('otpField').value = '';
+      document.getElementById('otpField').focus();
+    } else {
+      errEl.textContent = 'Failed to resend: ' + ((r && r.error) ? r.error : 'Unknown error');
+    }
+  } catch(e) {
+    rBtn.disabled = false; rBtn.textContent = 'Resend OTP';
+    errEl.textContent = 'Error: ' + e.message;
+  }
+}
+
+var _cancelOrderId = '';
+function openCancelModal(orderId) {
+  _cancelOrderId = orderId;
+  document.getElementById('cancelModalOrderId').textContent = 'Order: ' + orderId;
+  document.getElementById('cancelReasonSelect').value = '';
+  document.getElementById('cancelConfirmBtn').disabled = false;
+  document.getElementById('cancelConfirmBtn').textContent = 'Cancel Order';
+  document.getElementById('cancelModal').style.display = 'flex';
+}
+function closeCancelModal() {
+  document.getElementById('cancelModal').style.display = 'none';
+  _cancelOrderId = '';
+}
+
+async function confirmCancel() {
+  var reason = document.getElementById('cancelReasonSelect').value;
+  if (!reason) { showToast('Please select a reason.', 'error'); return; }
+  var btn = document.getElementById('cancelConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Cancelling...';
+  try {
+    var r = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cancel', pin: kitchenPin, orderId: _cancelOrderId, reason: reason })
+    });
+    btn.disabled = false; btn.textContent = 'Cancel Order';
+    if (r && r.error) {
+      showToast(r.error, 'error');
+    } else {
+      closeCancelModal();
+      showToast('Order cancelled and customer notified.', 'success');
+      loadBoard();
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Cancel Order';
+    showToast(e.message, 'error');
+  }
+}
+
+function getAgeMinutes(dateStr) {
+  if (!dateStr) return 0;
+  try { var d = new Date(dateStr); return isNaN(d.getTime()) ? 0 : Math.floor((Date.now() - d.getTime()) / 60000); } catch(e){ return 0; }
+}
+function shortDate(d) {
+  if (!d) return '--';
+  try {
+    var dt = new Date(d);
+    function p(n){ return n < 10 ? '0'+n : String(n); }
+    return p(dt.getDate())+'/'+p(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+p(dt.getHours())+':'+p(dt.getMinutes());
+  } catch(e){ return String(d); }
+}
+function playBeep() {
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var o = ctx.createOscillator(); var g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 880; o.type = 'sine';
+    g.gain.setValueAtTime(0.3, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    o.start(ctx.currentTime); o.stop(ctx.currentTime + 0.4);
+  } catch(e) {}
+}
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' '+type : '');
+  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+</script>
+</body>
+</html>
