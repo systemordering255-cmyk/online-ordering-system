@@ -167,7 +167,7 @@ module.exports = async (req, res) => {
         const orderId       = generateOrderId();
 
         // Insert order
-        await supabase.from('orders').insert({
+        const { error: orderInsertError } = await supabase.from('orders').insert({
           order_id:          orderId,
           customer_name:     d.customerName,
           phone:             d.phone,
@@ -184,6 +184,7 @@ module.exports = async (req, res) => {
           utr:               d.utr   || '',
           collection_method: collectionMethod
         });
+        if (orderInsertError) throw orderInsertError;
 
         // Insert order items
         await supabase.from('order_items').insert(
