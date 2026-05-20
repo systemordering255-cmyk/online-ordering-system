@@ -319,7 +319,7 @@ window.onload = async function() {
   } catch(e) {}
 
   try {
-    var d = await apiFetch('/api/page-data');
+    var d = await apiFetch('/api/settings?pageData=true');
     settings = d.settings || {};
     applyBranding();
     onProductsLoaded(d.products || []);

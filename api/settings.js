@@ -15,6 +15,18 @@ module.exports = async (req, res) => {
 
       const settings = {};
       data.forEach(row => { settings[row.key] = row.value; });
+
+      if (req.query.pageData) {
+        const [productsRes, reviewsRes] = await Promise.all([
+          supabase.from('products').select('*').eq('active', true).order('category').order('name'),
+          supabase.from('reviews').select('customer_name, rating, comment, created_at')
+            .eq('approved', true).order('created_at', { ascending: false }).limit(20)
+        ]);
+        if (productsRes.error) throw productsRes.error;
+        if (reviewsRes.error) throw reviewsRes.error;
+        return res.json({ settings, products: productsRes.data, reviews: reviewsRes.data });
+      }
+
       return res.json(settings);
     }
 
