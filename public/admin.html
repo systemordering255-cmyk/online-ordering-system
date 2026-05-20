@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#1a1d2e;color:#333;min-height:100vh}
@@ -194,6 +195,7 @@ tr:hover td{background:#fafbff}
     <div class="tab" onclick="switchTab('reviews',this)">Reviews</div>
     <div class="tab" onclick="switchTab('complaints',this)">Complaints</div>
     <div class="tab" onclick="switchTab('reports',this)">Reports</div>
+    <div class="tab" onclick="switchTab('export',this)">Export</div>
     <div class="tab" onclick="switchTab('settings',this)">Settings</div>
   </div>
 
@@ -320,6 +322,44 @@ tr:hover td{background:#fafbff}
         </div>
         <button class="btn btn-primary" id="reportGenBtn" onclick="generateReport()">Generate &amp; Print Report</button>
         <p id="reportStatus" style="font-size:13px;color:#777;margin-top:12px;display:none">Fetching orders&#8230;</p>
+      </div>
+    </div>
+
+    <div id="tab-export" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Export Data</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:24px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:6px">Data Type</label>
+            <select id="exportDataType" style="padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;min-width:190px">
+              <option value="orders">Orders</option>
+              <option value="customers">Customers</option>
+              <option value="products">Products (no date filter)</option>
+              <option value="inventory">Inventory Log</option>
+              <option value="reviews">Reviews</option>
+              <option value="complaints">Complaints</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:6px">Date Range</label>
+            <select id="exportPeriod" style="padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;min-width:190px">
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="week">Last 7 Days (Weekly)</option>
+              <option value="month">Last 30 Days (Monthly)</option>
+              <option value="quarter">Last 90 Days (Quarterly)</option>
+              <option value="halfyear">Last 6 Months</option>
+              <option value="year">Last 1 Year</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn btn-primary" onclick="runExport('csv',this)">&#x2193; CSV</button>
+          <button class="btn btn-primary" style="background:#217346" onclick="runExport('xls',this)">&#x2193; XLS</button>
+          <button class="btn btn-primary" style="background:#8b5cf6" onclick="runExport('ods',this)">&#x2193; ODS</button>
+        </div>
+        <p style="font-size:12px;color:#999">CSV &amp; XLS open in Microsoft Excel &bull; ODS opens in LibreOffice Calc &bull; All formats open in Google Sheets</p>
       </div>
     </div>
 
@@ -527,7 +567,7 @@ var tabLoaded = {};
 function switchTab(name, el) {
   document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
   el.classList.add('active');
-  ['overview','orders','payments','products','inventory','customers','reviews','complaints','reports','settings'].forEach(function(t){
+  ['overview','orders','payments','products','inventory','customers','reviews','complaints','reports','export','settings'].forEach(function(t){
     document.getElementById('tab-'+t).style.display = t === name ? 'block' : 'none';
   });
   if (!tabLoaded[name]) loadTab(name);
@@ -1297,6 +1337,109 @@ function formatDate(d) {
 }
 function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+function getExportDateRange(period) {
+  var now = new Date();
+  var from, to = new Date(now); to.setHours(23,59,59,999);
+  if (period === 'today')    { from = new Date(now); from.setHours(0,0,0,0); }
+  else if (period === 'yesterday') { from = new Date(now); from.setDate(from.getDate()-1); from.setHours(0,0,0,0); to = new Date(from); to.setHours(23,59,59,999); }
+  else if (period === 'week')     { from = new Date(now); from.setDate(from.getDate()-7);   from.setHours(0,0,0,0); }
+  else if (period === 'month')    { from = new Date(now); from.setDate(from.getDate()-30);  from.setHours(0,0,0,0); }
+  else if (period === 'quarter')  { from = new Date(now); from.setDate(from.getDate()-90);  from.setHours(0,0,0,0); }
+  else if (period === 'halfyear') { from = new Date(now); from.setDate(from.getDate()-180); from.setHours(0,0,0,0); }
+  else if (period === 'year')     { from = new Date(now); from.setDate(from.getDate()-365); from.setHours(0,0,0,0); }
+  else return null;
+  return { from: from, to: to };
+}
+
+function filterExportByDate(data, period, dateField) {
+  var range = getExportDateRange(period);
+  if (!range) return data;
+  return data.filter(function(row) {
+    var d = new Date(row[dateField]);
+    return d >= range.from && d <= range.to;
+  });
+}
+
+async function runExport(format, btn) {
+  var dataType = document.getElementById('exportDataType').value;
+  var period   = document.getElementById('exportPeriod').value;
+  var origText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Exporting...';
+
+  try {
+    var rows = [], filename = dataType;
+
+    if (dataType === 'orders') {
+      var data = await apiFetch('/api/orders?admin=true&token=' + encodeURIComponent(adminToken));
+      data = filterExportByDate(data, period, 'created_at');
+      rows = data.map(function(o) { return {
+        'Order ID': o.order_id, 'Date': formatDate(o.created_at),
+        'Customer': o.customer_name, 'Phone': o.phone, 'Email': o.email,
+        'Address': o.address,
+        'Items': (o.items_json||[]).map(function(i){ return i.qty+'x '+i.name; }).join(', '),
+        'Subtotal': o.subtotal, 'Delivery Fee': o.delivery_fee, 'Total': o.total,
+        'Payment Method': o.payment_method, 'Payment Status': o.payment_status,
+        'Order Status': o.order_status, 'Collection': o.collection_method,
+        'UTR/Ref': o.utr||'', 'Notes': o.notes||''
+      }; });
+    } else if (dataType === 'customers') {
+      var data = await apiFetch('/api/customers?token=' + encodeURIComponent(adminToken));
+      data = filterExportByDate(data, period, 'created_at');
+      rows = data.map(function(c) { return {
+        'Name': c.name, 'Email': c.email, 'Phone': c.phone,
+        'Total Orders': c.total_orders, 'Total Spent': c.total_spent,
+        'Last Order': formatDate(c.last_order_date), 'Joined': formatDate(c.created_at)
+      }; });
+    } else if (dataType === 'products') {
+      var data = await apiFetch('/api/products?admin=true&token=' + encodeURIComponent(adminToken));
+      rows = data.map(function(p) { return {
+        'Name': p.name, 'Category': p.category, 'Price': p.price,
+        'Stock': p.stock, 'Active': p.active ? 'Yes' : 'No', 'Description': p.description||''
+      }; });
+    } else if (dataType === 'inventory') {
+      var data = await apiFetch('/api/inventory?token=' + encodeURIComponent(adminToken));
+      data = filterExportByDate(data, period, 'created_at');
+      rows = data.map(function(l) { return {
+        'Date': formatDate(l.created_at), 'Product': l.product_name,
+        'Change Type': l.change_type, 'Qty Before': l.qty_before,
+        'Qty After': l.qty_after, 'Changed By': l.changed_by
+      }; });
+    } else if (dataType === 'reviews') {
+      var data = await apiFetch('/api/reviews?admin=true&token=' + encodeURIComponent(adminToken));
+      data = filterExportByDate(data, period, 'created_at');
+      rows = data.map(function(r) { return {
+        'Date': formatDate(r.created_at), 'Customer': r.customer_name,
+        'Order ID': r.order_id||'', 'Rating': r.rating,
+        'Comment': r.comment, 'Approved': r.approved ? 'Yes' : 'No'
+      }; });
+    } else if (dataType === 'complaints') {
+      var data = await apiFetch('/api/complaints?token=' + encodeURIComponent(adminToken));
+      data = filterExportByDate(data, period, 'created_at');
+      rows = data.map(function(c) { return {
+        'Date': formatDate(c.created_at), 'Order ID': c.order_id||'',
+        'Customer': c.customer_name, 'Email': c.email, 'Phone': c.phone,
+        'Subject': c.subject, 'Description': c.description, 'Status': c.status
+      }; });
+    }
+
+    if (!rows.length) { showToast('No data found for selected range.', 'error'); return; }
+
+    var periodLabel = document.getElementById('exportPeriod').selectedOptions[0].text.replace(/[^a-zA-Z0-9]/g,'_');
+    var fullFilename = filename + '_' + periodLabel + '.' + format;
+
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, dataType.charAt(0).toUpperCase()+dataType.slice(1));
+    XLSX.writeFile(wb, fullFilename);
+
+    showToast('Exported ' + rows.length + ' rows → ' + fullFilename, 'success');
+  } catch(e) {
+    showToast('Export failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = origText;
+  }
+}
 </script>
 </body>
 </html>
