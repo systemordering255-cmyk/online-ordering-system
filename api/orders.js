@@ -192,7 +192,7 @@ module.exports = async (req, res) => {
           if (offer.max_uses !== null && offer.uses_count >= offer.max_uses) continue;
           if (subtotal < parseFloat(offer.min_order || 0)) continue;
           if (offer.apply_to === 'product') {
-            if (!validatedItems.some(i => i.id === offer.product_id)) continue;
+            if (!validatedItems.some(i => String(i.id) === String(offer.product_id))) continue;
           } else if (offer.apply_to === 'category') {
             const { data: catProds } = await supabase.from('products').select('id').eq('category', offer.category).in('id', validatedItems.map(i => i.id));
             if (!catProds || !catProds.length) continue;
