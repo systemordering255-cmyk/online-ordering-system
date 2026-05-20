@@ -1487,6 +1487,19 @@ function toggleOfferApplyFields() {
   var v = document.getElementById('offerApplyTo').value;
   document.getElementById('offerProductField').style.display  = v === 'product'  ? 'block' : 'none';
   document.getElementById('offerCategoryField').style.display = v === 'category' ? 'block' : 'none';
+
+  if (v === 'product') {
+    var sel = document.getElementById('offerProductId');
+    if (sel.options.length <= 1) {
+      sel.innerHTML = '<option value="">Loading products...</option>';
+      apiFetch('/api/products?admin=true&token=' + encodeURIComponent(adminToken)).then(function(prods) {
+        allProductsCache = prods || [];
+        var opts = '<option value="">-- select product --</option>';
+        allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(String(p.id))+'">'+esc(p.name)+'</option>'; });
+        sel.innerHTML = opts;
+      }).catch(function(){ sel.innerHTML = '<option value="">Failed to load</option>'; });
+    }
+  }
 }
 
 function toLocalDatetimeValue(isoString) {
