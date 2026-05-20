@@ -1496,7 +1496,7 @@ function toLocalDatetimeValue(isoString) {
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
 }
 
-async function openOfferModal(idx) {
+function openOfferModal(idx) {
   editingOfferId = null;
   document.getElementById('offerModalTitle').textContent = idx === null ? 'New Offer' : 'Edit Offer';
   document.getElementById('offerModalError').style.display = 'none';
@@ -1511,7 +1511,6 @@ async function openOfferModal(idx) {
     document.getElementById('offerValidFrom').value = '';
     document.getElementById('offerValidTo').value = '';
     document.getElementById('offerMaxUses').value = '';
-    document.getElementById('offerProductId').value = '';
     document.getElementById('offerCategory').value = '';
   } else {
     var o = allOffersCache[idx];
@@ -1525,26 +1524,27 @@ async function openOfferModal(idx) {
     document.getElementById('offerValidFrom').value = toLocalDatetimeValue(o.valid_from);
     document.getElementById('offerValidTo').value = toLocalDatetimeValue(o.valid_to);
     document.getElementById('offerMaxUses').value = o.max_uses || '';
-    document.getElementById('offerProductId').value = o.product_id || '';
     document.getElementById('offerCategory').value = o.category || '';
   }
 
-  // Populate product dropdown
-  if (allProductsCache.length) {
-    var opts = '<option value="">-- select product --</option>';
-    allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(p.id)+'">'+esc(p.name)+'</option>'; });
-    document.getElementById('offerProductId').innerHTML = opts;
-    if (editingOfferId) document.getElementById('offerProductId').value = allOffersCache.find(function(o){ return o.id === editingOfferId; })?.product_id || '';
-  } else {
-    var prods = await apiFetch('/api/products?admin=true&token=' + encodeURIComponent(adminToken));
-    allProductsCache = prods || [];
-    var opts = '<option value="">-- select product --</option>';
-    allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(p.id)+'">'+esc(p.name)+'</option>'; });
-    document.getElementById('offerProductId').innerHTML = opts;
-  }
-
+  // Show modal immediately, then populate product dropdown async
   toggleOfferApplyFields();
   document.getElementById('offerModal').classList.add('show');
+
+  // Populate product dropdown in background
+  var savedProductId = idx !== null ? (allOffersCache[idx]?.product_id || '') : '';
+  (async function() {
+    try {
+      if (!allProductsCache.length) {
+        var prods = await apiFetch('/api/products?admin=true&token=' + encodeURIComponent(adminToken));
+        allProductsCache = prods || [];
+      }
+      var opts = '<option value="">-- select product --</option>';
+      allProductsCache.forEach(function(p){ opts += '<option value="'+escAttr(p.id)+'">'+esc(p.name)+'</option>'; });
+      document.getElementById('offerProductId').innerHTML = opts;
+      if (savedProductId) document.getElementById('offerProductId').value = savedProductId;
+    } catch(e) {}
+  })();
 }
 
 async function saveOffer() {
