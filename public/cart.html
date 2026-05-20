@@ -326,7 +326,8 @@ function checkOffers() {
   activeOffers.forEach(function(offer) {
     if (subtotal < parseFloat(offer.min_order || 0)) return;
     if (offer.apply_to === 'product') {
-      if (!items.some(function(i){ return i.id === offer.product_id; })) return;
+      if (!offer.product_id) return;
+      if (!items.some(function(i){ return String(i.id) === String(offer.product_id); })) return;
     }
     var disc = offer.discount_type === 'percent'
       ? subtotal * (parseFloat(offer.discount_value) / 100)
