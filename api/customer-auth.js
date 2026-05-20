@@ -1,8 +1,11 @@
 const supabase = require('../lib/supabase');
 const crypto = require('crypto');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
+});
 
 const OTP_EXPIRY_MS     = 15 * 60 * 1000;  // 15 minutes
 const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -65,19 +68,17 @@ module.exports = async (req, res) => {
 
       const bizName = await getBusinessName();
 
-      // Send OTP email via Resend
-      const { data: emailData, error: emailError } = await resend.emails.send({
-        from:    'onboarding@resend.dev',
+      // Send OTP email via Gmail
+      await transporter.sendMail({
+        from:    `"${bizName}" <${process.env.GMAIL_USER}>`,
         to:      normalizedEmail,
         subject: `${bizName} - Your Login OTP`,
-        replyTo: 'systemordering255@gmail.com',
         html:    `<p>Hello,</p>
                   <p>Your OTP for <b>${bizName}</b> is: <b style="font-size:24px">${otpCode}</b></p>
                   <p>This OTP is valid for 15 minutes. Do not share it with anyone.</p>
                   <p>If you did not request this, please ignore this email.</p>`
       });
 
-      if (emailError) return res.json({ success: false, error: 'Email failed: ' + emailError.message });
       return res.json({ success: true });
     }
 
