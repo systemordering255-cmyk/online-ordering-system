@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
       const bizName = await getBusinessName();
 
       // Send OTP email via Resend
-      await resend.emails.send({
+      const { data: emailData, error: emailError } = await resend.emails.send({
         from:    'onboarding@resend.dev',
         to:      normalizedEmail,
         subject: `${bizName} - Your Login OTP`,
@@ -77,6 +77,7 @@ module.exports = async (req, res) => {
                   <p>If you did not request this, please ignore this email.</p>`
       });
 
+      if (emailError) return res.json({ success: false, error: 'Email failed: ' + emailError.message });
       return res.json({ success: true });
     }
 
