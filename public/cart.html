@@ -629,21 +629,22 @@ function onMapSearch(query) {
   box.style.display = 'block';
   _mapSearchTimer = setTimeout(async function() {
     try {
-      var r = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) + '&format=json&limit=6&addressdetails=1');
-      _mapSuggestions = await r.json();
+      var r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=6&lang=en');
+      var d = await r.json();
+      _mapSuggestions = d.features || [];
       if (!_mapSuggestions.length) {
         box.innerHTML = '<div class="map-suggestion" style="color:#888;cursor:default">No results found</div>';
         return;
       }
       box.innerHTML = _mapSuggestions.map(function(s, i){
-        var a = s.address || {};
-        var name = s.name || a.road || a.neighbourhood || a.suburb || '';
-        var city  = a.city || a.town || a.village || '';
-        var state = a.state || '';
+        var p = s.properties;
+        var name = p.name || p.street || p.city || p.county || '';
+        var city  = p.city || p.town || p.village || p.county || '';
+        var state = p.state || '';
         var sub   = [city, state].filter(Boolean).join(', ');
         return '<div class="map-suggestion" onclick="pickSuggestion(' + i + ')">' +
-          esc(name || s.display_name) +
-          (sub ? '<br><small style="color:#888">' + esc(sub) + '</small>' : '') +
+          esc(name || '') +
+          (sub && sub !== name ? '<br><small style="color:#888">' + esc(sub) + '</small>' : '') +
         '</div>';
       }).join('');
     } catch(e) {
@@ -655,7 +656,8 @@ function onMapSearch(query) {
 function pickSuggestion(idx) {
   var s = _mapSuggestions[idx];
   if (!s) return;
-  _cartMap.setView([parseFloat(s.lat), parseFloat(s.lon)], 18);
+  var coords = s.geometry.coordinates;
+  _cartMap.setView([coords[1], coords[0]], 18);
   document.getElementById('mapSearchInput').value = '';
   document.getElementById('mapSuggestions').style.display = 'none';
 }
