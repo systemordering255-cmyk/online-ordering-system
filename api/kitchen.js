@@ -42,6 +42,26 @@ module.exports = async (req, res) => {
     if (!(await verifyPin(pin))) return res.json({ error: 'Wrong PIN' });
 
     if (action === 'get-orders') {
+      const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: stale } = await supabase
+        .from('orders').select('*')
+        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery'])
+        .lt('created_at', cutoff);
+      for (const ord of stale || []) {
+        const items = Array.isArray(ord.items_json) ? ord.items_json : [];
+        for (const item of items) {
+          const { data: prod } = await supabase.from('products').select('stock').eq('id', item.id).single();
+          await supabase.from('products').update({ stock: (prod?.stock || 0) + item.qty }).eq('id', item.id);
+        }
+        const ts = new Date().toLocaleString('en-IN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12: false });
+        const note = `[${ts}] Auto-cancelled: not fulfilled within 1 hour`;
+        await supabase.from('orders').update({
+          order_status: 'Cancelled',
+          notes: ord.notes ? `${ord.notes}\n${note}` : note
+        }).eq('order_id', ord.order_id);
+        const settings = await getSettings();
+        email.sendCancellationEmail(ord.email, ord.customer_name, ord.order_id, 'Not fulfilled within 1 hour', settings).catch(() => {});
+      }
       const { data } = await supabase
         .from('orders').select('*')
         .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery'])

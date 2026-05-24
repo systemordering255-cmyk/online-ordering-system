@@ -83,7 +83,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .advance-btn:hover{filter:brightness(1.2)}
 .advance-btn:active{transform:scale(.97)}
 .advance-btn:disabled{opacity:.4;cursor:not-allowed}
-.advance-btn.otp-trigger{background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
 .advance-btn.cash-collect{background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
 
 .age-bar{height:3px;border-radius:2px;margin-bottom:10px;overflow:hidden;background:#374151}
@@ -118,32 +117,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .cancel-yes-btn:hover:not(:disabled){background:#b91c1c}
 .cancel-yes-btn:disabled{opacity:.5;cursor:not-allowed}
 
-.otp-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;
-  display:flex;align-items:center;justify-content:center;padding:20px}
-.otp-modal{background:#1f2937;border:1px solid #374151;border-radius:20px;
-  padding:32px 28px;width:100%;max-width:360px;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.6)}
-.otp-modal-icon{font-size:40px;margin-bottom:10px}
-.otp-modal h2{font-size:20px;font-weight:700;margin-bottom:4px;color:#f9fafb}
-.otp-modal-sub{font-size:12px;color:#6b7280;margin-bottom:6px}
-.otp-modal-orderid{font-family:monospace;font-size:11px;color:#4b5563;margin-bottom:18px}
-.otp-modal-hint{font-size:14px;color:#d1d5db;line-height:1.5;margin-bottom:18px}
-.otp-field{width:100%;background:#111827;border:2px solid #374151;color:#f9fafb;
-  border-radius:12px;padding:14px;font-size:30px;letter-spacing:10px;
-  font-family:monospace;text-align:center;outline:none;margin-bottom:10px;
-  transition:border-color .2s;-webkit-appearance:none}
-.otp-field:focus{border-color:#3b82f6}
-.otp-error-msg{color:#fca5a5;font-size:13px;margin-bottom:12px;min-height:20px;line-height:1.4}
-.otp-modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.otp-resend-btn{background:transparent;border:1px solid #374151;color:#9ca3af;
-  border-radius:8px;padding:12px;font-size:13px;cursor:pointer}
-.otp-resend-btn:hover:not(:disabled){border-color:#6b7280;color:#f9fafb}
-.otp-resend-btn:disabled{opacity:.4;cursor:not-allowed}
-.otp-verify-btn{background:#22c55e;border:none;color:#fff;border-radius:8px;
-  padding:12px;font-size:13px;font-weight:700;cursor:pointer}
-.otp-verify-btn:hover:not(:disabled){background:#16a34a}
-.otp-verify-btn:disabled{opacity:.5;cursor:not-allowed}
-.otp-cancel-link{background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;padding:4px 8px}
-.otp-cancel-link:hover{color:#9ca3af}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
   background:#1f2937;border:1px solid #374151;color:#f9fafb;padding:10px 20px;
@@ -221,28 +194,6 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
   </div>
 </div>
 
-<div class="otp-modal-overlay" id="otpModal" style="display:none">
-  <div class="otp-modal">
-    <div class="otp-modal-icon">&#x1F510;</div>
-    <h2>Delivery Verification</h2>
-    <p class="otp-modal-sub">OTP-based delivery confirmation</p>
-    <p class="otp-modal-orderid" id="otpModalOrderId"></p>
-    <p class="otp-modal-hint">
-      Ask the customer for the <strong>6-digit OTP</strong> sent to their email.
-      Enter it below to confirm delivery.
-    </p>
-    <input class="otp-field" id="otpField" type="text" inputmode="numeric"
-           maxlength="6" placeholder="000000" autocomplete="off"
-           oninput="this.value=this.value.replace(/\D/g,'')"
-           onkeydown="if(event.key==='Enter')submitOtp()">
-    <div class="otp-error-msg" id="otpErrorMsg"></div>
-    <div class="otp-modal-btns">
-      <button class="otp-resend-btn" id="otpResendBtn" onclick="resendOtp()">&#8635; Resend OTP</button>
-      <button class="otp-verify-btn" id="otpVerifyBtn" onclick="submitOtp()">&#10003; Verify &amp; Deliver</button>
-    </div>
-    <button class="otp-cancel-link" onclick="closeOtpModal()">Cancel</button>
-  </div>
-</div>
 
 <script>
 var kitchenPin = '';
@@ -387,7 +338,7 @@ function orderCard(o, col) {
     if (o.payment_method === 'COD' && o.payment_status !== 'Collected') {
       btnHtml = '<button class="advance-btn cash-collect" onclick="markCashCollected(\'' + esc(o.order_id) + '\',this)">&#128176; Cash Collected</button>';
     } else {
-      btnHtml = '<button class="advance-btn otp-trigger" onclick="openOtpModal(\'' + esc(o.order_id) + '\')">&#128273; Verify OTP &amp; Deliver</button>';
+      btnHtml = '<div style="text-align:center;padding:8px;font-size:12px;color:#6b7280">&#128666; Awaiting delivery confirmation</div>';
     }
   } else {
     btnHtml = '<button class="advance-btn" onclick="advance(\'' + esc(o.order_id) + '\',this)">' + col.next + '</button>' +
@@ -416,17 +367,14 @@ async function advance(orderId, btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'advance-status', pin: kitchenPin, orderId: orderId })
     });
-    if (r && r.error === 'OTP_REQUIRED') {
-      btn.disabled = false; btn.textContent = origText;
-      openOtpModal(orderId);
-    } else if (r && r.error === 'PAYMENT_NOT_VERIFIED') {
+    if (r && r.error === 'PAYMENT_NOT_VERIFIED') {
       showToast('Cannot dispatch -- online payment not yet confirmed by admin.', 'error');
       btn.disabled = false; btn.textContent = origText;
     } else if (r && r.error) {
       showToast(r.error, 'error');
       btn.disabled = false; btn.textContent = 'Retry';
     } else {
-      showToast(r.otpSent ? 'Dispatched! OTP sent to customer.' : 'Order updated!', 'success');
+      showToast('Order updated!', 'success');
       loadBoard();
     }
   } catch(e) {
@@ -446,7 +394,7 @@ async function markCashCollected(orderId, btn) {
     if (r && r.error) {
       showToast(r.error, 'error'); btn.disabled = false; btn.textContent = 'Cash Collected';
     } else {
-      showToast('Cash collected! OTP button now available.', 'success');
+      showToast('Cash collected!', 'success');
       loadBoard();
     }
   } catch(e) {
@@ -454,81 +402,6 @@ async function markCashCollected(orderId, btn) {
   }
 }
 
-var _otpOrderId = '';
-function openOtpModal(orderId) {
-  _otpOrderId = orderId;
-  document.getElementById('otpModalOrderId').textContent = 'Order: ' + orderId;
-  document.getElementById('otpField').value = '';
-  document.getElementById('otpErrorMsg').textContent = '';
-  document.getElementById('otpVerifyBtn').disabled = false;
-  document.getElementById('otpVerifyBtn').textContent = 'Verify & Deliver';
-  document.getElementById('otpResendBtn').disabled = false;
-  document.getElementById('otpResendBtn').textContent = 'Resend OTP';
-  document.getElementById('otpModal').style.display = 'flex';
-  setTimeout(function(){ document.getElementById('otpField').focus(); }, 80);
-}
-function closeOtpModal() {
-  document.getElementById('otpModal').style.display = 'none';
-  _otpOrderId = '';
-}
-
-async function submitOtp() {
-  var otp   = document.getElementById('otpField').value.trim();
-  var errEl = document.getElementById('otpErrorMsg');
-  if (otp.length !== 6) { errEl.textContent = 'Please enter the complete 6-digit OTP.'; return; }
-  var vBtn = document.getElementById('otpVerifyBtn');
-  vBtn.disabled = true; vBtn.textContent = 'Verifying...'; errEl.textContent = '';
-  try {
-    var r = await apiFetch('/api/delivery', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify-otp', pin: kitchenPin, orderId: _otpOrderId, otp: otp })
-    });
-    vBtn.disabled = false; vBtn.textContent = 'Verify & Deliver';
-    if (r && r.success) {
-      closeOtpModal();
-      showToast('Order delivered! OTP verified.', 'success');
-      loadBoard();
-    } else if (r && r.error === 'OTP_EXPIRED') {
-      errEl.textContent = 'OTP expired. Click "Resend OTP" to send a new one to the customer.';
-    } else if (r && r.error === 'OTP_INVALID') {
-      errEl.textContent = 'Incorrect OTP. Please check with the customer and try again.';
-      document.getElementById('otpField').value = '';
-      document.getElementById('otpField').focus();
-    } else if (r && r.error === 'OTP_REQUIRED') {
-      errEl.textContent = 'No OTP found. Click "Resend OTP" to generate one.';
-    } else {
-      errEl.textContent = (r && r.error) ? r.error : 'Verification failed. Please try again.';
-    }
-  } catch(e) {
-    vBtn.disabled = false; vBtn.textContent = 'Verify & Deliver';
-    errEl.textContent = 'Error: ' + e.message;
-  }
-}
-
-async function resendOtp() {
-  var rBtn  = document.getElementById('otpResendBtn');
-  var errEl = document.getElementById('otpErrorMsg');
-  rBtn.disabled = true; rBtn.textContent = 'Sending...'; errEl.textContent = '';
-  try {
-    var r = await apiFetch('/api/delivery', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'resend-otp', pin: kitchenPin, orderId: _otpOrderId })
-    });
-    rBtn.disabled = false; rBtn.textContent = 'Resend OTP';
-    if (r && r.success) {
-      showToast('New OTP sent to customer.', 'success');
-      document.getElementById('otpField').value = '';
-      document.getElementById('otpField').focus();
-    } else {
-      errEl.textContent = 'Failed to resend: ' + ((r && r.error) ? r.error : 'Unknown error');
-    }
-  } catch(e) {
-    rBtn.disabled = false; rBtn.textContent = 'Resend OTP';
-    errEl.textContent = 'Error: ' + e.message;
-  }
-}
 
 var _cancelOrderId = '';
 function openCancelModal(orderId) {
