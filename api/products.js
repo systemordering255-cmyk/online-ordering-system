@@ -43,6 +43,7 @@ module.exports = async (req, res) => {
         name:        product.name,
         category:    product.category || '',
         description: product.description || '',
+        unit:        product.unit || '',
         price:       parseFloat(product.price) || 0,
         stock:       parseInt(product.stock) || 0,
         image_url:   product.imageUrl || product.image_url || '',

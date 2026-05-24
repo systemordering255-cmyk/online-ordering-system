@@ -883,6 +883,7 @@ function openProductModal(idx) {
     formField('Category', 'prodCategory', 'text', p ? p.category : '') +
     formField('Price *', 'prodPrice', 'number', p ? p.price : '') +
     formField('Stock', 'prodStock', 'number', p ? p.stock : 0) +
+    '<div><label>Unit / Qty</label><input id="prodUnit" type="text" placeholder="e.g. 1 Kg, 500g, 12 pcs, 1 Ltr" value="' + escAttr(p ? (p.unit || '') : '') + '"></div>' +
     formField('Image URL', 'prodImage', 'url', p ? (p.image_url || '') : '', 'full') +
     '<div class="full"><label>Description</label><textarea id="prodDesc">' + esc(p ? p.description : '') + '</textarea></div>' +
     '<div><label>Active</label><select id="prodActive">' +
@@ -903,6 +904,7 @@ async function submitProduct() {
     price:       parseFloat(document.getElementById('prodPrice').value) || 0,
     stock:       parseInt(document.getElementById('prodStock').value) || 0,
     imageUrl:    document.getElementById('prodImage').value.trim(),
+    unit:        document.getElementById('prodUnit').value.trim(),
     description: document.getElementById('prodDesc').value.trim(),
     active:      document.getElementById('prodActive').value === 'true'
   };
