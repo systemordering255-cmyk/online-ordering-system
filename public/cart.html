@@ -627,8 +627,8 @@ function onMapSearch(query) {
   if (!query || query.length < 3) { box.style.display = 'none'; return; }
   _mapSearchTimer = setTimeout(async function() {
     try {
-      var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) +
-                '&format=json&limit=8&addressdetails=1&countrycodes=in&dedupe=1';
+      var url = 'https://www.openstreetmap.org/search?query=' + encodeURIComponent(query) +
+                '&format=json&limit=8&addressdetails=1&countrycodes=in';
       var r = await fetch(url, { headers: { 'Accept-Language': 'en' } });
       _mapSuggestions = await r.json();
       if (!_mapSuggestions.length) { box.style.display = 'none'; return; }
