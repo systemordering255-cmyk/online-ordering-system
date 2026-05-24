@@ -625,11 +625,16 @@ function onMapSearch(query) {
   clearTimeout(_mapSearchTimer);
   var box = document.getElementById('mapSuggestions');
   if (!query || query.length < 3) { box.style.display = 'none'; return; }
+  box.innerHTML = '<div class="map-suggestion" style="color:#888;cursor:default">Searching...</div>';
+  box.style.display = 'block';
   _mapSearchTimer = setTimeout(async function() {
     try {
       var r = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) + '&format=json&limit=6&addressdetails=1');
       _mapSuggestions = await r.json();
-      if (!_mapSuggestions.length) { box.style.display = 'none'; return; }
+      if (!_mapSuggestions.length) {
+        box.innerHTML = '<div class="map-suggestion" style="color:#888;cursor:default">No results found</div>';
+        return;
+      }
       box.innerHTML = _mapSuggestions.map(function(s, i){
         var a = s.address || {};
         var name = s.name || a.road || a.neighbourhood || a.suburb || '';
@@ -641,8 +646,9 @@ function onMapSearch(query) {
           (sub ? '<br><small style="color:#888">' + esc(sub) + '</small>' : '') +
         '</div>';
       }).join('');
-      box.style.display = 'block';
-    } catch(e) { box.style.display = 'none'; }
+    } catch(e) {
+      box.innerHTML = '<div class="map-suggestion" style="color:#f00;cursor:default">Error: ' + e.message + '</div>';
+    }
   }, 600);
 }
 
