@@ -612,7 +612,7 @@ async function reverseGeocodeCart(lat, lng) {
   try {
     var url = 'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lng +
               '&format=json&zoom=18&addressdetails=1';
-    var r = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'OnlineOrderingApp/1.0' } });
+    var r = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     var d = await r.json();
     var addr = buildAddress(d);
     document.getElementById('mapAddrText').textContent = addr || 'Address not found';
@@ -629,7 +629,7 @@ function onMapSearch(query) {
     try {
       var url = 'https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(query) +
                 '&format=json&limit=8&addressdetails=1&countrycodes=in&dedupe=1';
-      var r = await fetch(url, { headers: { 'Accept-Language': 'en', 'User-Agent': 'OnlineOrderingApp/1.0' } });
+      var r = await fetch(url, { headers: { 'Accept-Language': 'en' } });
       _mapSuggestions = await r.json();
       if (!_mapSuggestions.length) { box.style.display = 'none'; return; }
       box.innerHTML = _mapSuggestions.map(function(s, i){
