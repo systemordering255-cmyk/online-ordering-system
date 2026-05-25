@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Delivery Partner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;min-height:100vh}
@@ -115,6 +117,23 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .toast.success{background:#064e3b;border-color:#10b981;color:#6ee7b7}
 .toast.error{background:#450a0a;border-color:#ef4444;color:#fca5a5}
 .loading{text-align:center;padding:40px;color:#6b7280;font-size:14px}
+.btn-map{background:rgba(59,130,246,.15);color:#60a5fa;border:2px solid rgba(59,130,246,.3);margin-bottom:8px}
+.btn-map:hover{background:rgba(59,130,246,.28);border-color:#60a5fa}
+.map-modal{position:fixed;inset:0;z-index:700;display:flex;flex-direction:column;background:#111827}
+.map-modal.hidden{display:none}
+#deliveryMap{flex:1;width:100%}
+.map-modal-bar{background:#1f2937;padding:12px 16px;display:flex;gap:10px;align-items:center;border-top:1px solid #374151;flex-shrink:0}
+.map-modal-addr{flex:1;font-size:13px;color:#d1d5db;line-height:1.4}
+.map-modal-close{background:#374151;border:none;color:#f9fafb;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;flex-shrink:0}
+.map-modal-nav{background:#3b82f6;border:none;color:#fff;border-radius:8px;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;flex-shrink:0}
+.dm-pin{background:transparent!important;border:none!important;font-size:28px;line-height:1}
+@media(max-width:480px){
+  .refresh-info{display:none}
+  .topbar .brand{font-size:15px}
+  .order-list{padding:12px}
+  .dc-body{padding:12px}
+  .dc-total{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -161,6 +180,16 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 
 <div class="toast" id="toast"></div>
 
+<!-- Delivery map modal -->
+<div class="map-modal hidden" id="deliveryMapModal">
+  <div id="deliveryMap"></div>
+  <div class="map-modal-bar">
+    <div class="map-modal-addr" id="deliveryMapAddr">Loading address&#8230;</div>
+    <button class="map-modal-nav" onclick="navigateToAddress()">&#128214; Navigate</button>
+    <button class="map-modal-close" onclick="closeDeliveryMap()">&#10005; Close</button>
+  </div>
+</div>
+
 <div id="otpModal" style="display:none">
   <div class="otp-modal-overlay">
     <div class="otp-modal">
@@ -190,6 +219,7 @@ var deliveryPin  = '';
 var pinInput     = '';
 var refreshTimer, countdownTimer, secondsLeft = 30;
 var _otpOrderId  = '';
+var _orders      = [];
 
 async function apiFetch(url, options) {
   var res = await fetch(url, options);
@@ -265,6 +295,7 @@ function startAutoRefresh() {
 }
 
 function renderOrders(orders) {
+  _orders = orders || [];
   var list = document.getElementById('orderList');
   if (!orders || !orders.length) {
     list.innerHTML = '<div class="empty-state">' +
@@ -323,7 +354,10 @@ function deliveryCard(o) {
         : '') +
       '<div class="dc-items">' + esc(itemStr) + '</div>' +
       '<div class="dc-total">Rs.' + parseFloat(o.total).toFixed(2) + '</div>' +
-      '<div class="dc-footer">' + actionBtn + '</div>' +
+      '<div class="dc-footer">' +
+        (!isPickup ? '<button class="action-btn btn-map" onclick="openDeliveryMap(\'' + esc(o.order_id) + '\')">&#128205; View on Map</button>' : '') +
+        actionBtn +
+      '</div>' +
     '</div>' +
   '</div>';
 }
@@ -428,6 +462,72 @@ function showToast(msg, type) {
   setTimeout(function(){ t.classList.remove('show'); }, 3000);
 }
 function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+
+// ── Delivery map ─────────────────────────────────────────────
+var _dMap = null, _dMapLat = null, _dMapLng = null, _dMapAddr = '';
+var _dCustomerMarker = null, _dPartnerMarker = null;
+
+async function openDeliveryMap(orderId) {
+  var order = _orders.find(function(o){ return o.order_id === orderId; });
+  var address = (order && order.address) ? order.address : '';
+  _dMapAddr = address;
+  _dMapLat = null; _dMapLng = null;
+
+  document.getElementById('deliveryMapAddr').textContent = address || 'No address on file';
+  document.getElementById('deliveryMapModal').classList.remove('hidden');
+
+  if (!_dMap) {
+    _dMap = L.map('deliveryMap').setView([20.5937, 78.9629], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(_dMap);
+  }
+  setTimeout(function(){ _dMap.invalidateSize(); }, 120);
+
+  if (_dCustomerMarker) { _dMap.removeLayer(_dCustomerMarker); _dCustomerMarker = null; }
+  if (_dPartnerMarker)  { _dMap.removeLayer(_dPartnerMarker);  _dPartnerMarker  = null; }
+
+  if (address) {
+    try {
+      var r = await fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(address) + '&format=json&limit=1', { headers: { 'Accept-Language': 'en' } });
+      var data = await r.json();
+      if (data && data[0]) {
+        _dMapLat = parseFloat(data[0].lat);
+        _dMapLng = parseFloat(data[0].lon);
+        var pinIcon = L.divIcon({ html: '&#128205;', className: 'dm-pin', iconSize: [32, 32], iconAnchor: [16, 32] });
+        _dCustomerMarker = L.marker([_dMapLat, _dMapLng], { icon: pinIcon }).addTo(_dMap)
+          .bindPopup('<strong>Customer</strong><br>' + address).openPopup();
+        _dMap.setView([_dMapLat, _dMapLng], 16);
+        document.getElementById('deliveryMapAddr').textContent = address;
+      }
+    } catch(e) {}
+  }
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      var bikeIcon = L.divIcon({ html: '&#x1F6F5;', className: 'dm-pin', iconSize: [32, 32], iconAnchor: [16, 16] });
+      _dPartnerMarker = L.marker([lat, lng], { icon: bikeIcon }).addTo(_dMap).bindPopup('You are here');
+      if (!_dMapLat) { _dMap.setView([lat, lng], 15); }
+      else {
+        var bounds = L.latLngBounds([[_dMapLat, _dMapLng], [lat, lng]]);
+        _dMap.fitBounds(bounds, { padding: [48, 48] });
+      }
+    });
+  }
+}
+
+function closeDeliveryMap() {
+  document.getElementById('deliveryMapModal').classList.add('hidden');
+}
+
+function navigateToAddress() {
+  var url = (_dMapLat && _dMapLng)
+    ? 'https://www.google.com/maps/dir/?api=1&destination=' + _dMapLat + ',' + _dMapLng
+    : 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(_dMapAddr);
+  window.open(url, '_blank');
+}
 </script>
 </body>
 </html>

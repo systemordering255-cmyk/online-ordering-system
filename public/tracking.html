@@ -156,6 +156,13 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
 .cmp-field:focus{border-color:#f44336}
 textarea.cmp-field{resize:vertical;min-height:80px}
 .cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:480px){
+  .container{padding:16px 14px}
+  .cmp-row{grid-template-columns:1fr}
+  .otp-code{font-size:28px;letter-spacing:6px;min-width:0;padding:8px 12px}
+  .steps{padding:0 4px}
+  .step-label{font-size:9px;max-width:48px}
+}
 </style>
 </head>
 <body>
