@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#111827">
 <title>Kitchen Board</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -472,6 +474,7 @@ function showToast(msg, type) {
   setTimeout(function(){ t.classList.remove('show'); }, 3000);
 }
 function esc(s){ var d=document.createElement('div');d.textContent=s||'';return d.innerHTML; }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 </script>
 </body>
 </html>

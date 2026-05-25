@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f172a">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>Launcher</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -133,6 +136,7 @@ fetch('/api/settings')
     if (s && s.business_name) document.getElementById('bizName').textContent = s.business_name;
   })
   .catch(function(){});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 </script>
 </body>
 </html>

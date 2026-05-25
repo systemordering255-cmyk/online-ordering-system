@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1a1d2e">
 <title>Admin Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -384,6 +386,32 @@ tr:hover td{background:#fafbff}
     </div>
 
     <div id="tab-settings" style="display:none">
+      <div class="panel" id="storeStatusPanel">
+        <div class="panel-title">Store Status</div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px">
+          <div id="storeStatusBadge" style="font-size:18px;font-weight:700"></div>
+          <button id="storeToggleBtn" class="btn" onclick="toggleStoreOpen()" style="min-width:130px"></button>
+          <span style="font-size:12px;color:#777">Closing the store prevents new orders from being placed.</span>
+        </div>
+        <div style="border-top:1px solid #f0f0f0;padding-top:16px">
+          <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:12px">Auto-hours (optional)</div>
+          <div class="settings-grid" style="max-width:560px">
+            <div><label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Opening Time</label>
+              <input id="set_open_time" type="time" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+            </div>
+            <div><label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Closing Time</label>
+              <input id="set_close_time" type="time" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none">
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:8px">Open Days</label>
+            <div id="daysGrid" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          </div>
+          <br>
+          <button class="btn btn-primary" onclick="saveHours()">Save Hours</button>
+          <span style="font-size:12px;color:#777;margin-left:10px">Leave times empty to disable auto-hours (manual toggle only).</span>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-title">Store Settings</div>
         <div class="settings-grid" id="settingsForm"></div>
@@ -1065,6 +1093,61 @@ var settingsFields = [
   {key:'kitchen_pin',            label:'Owner Board PIN',       type:'text',   full:false},
   {key:'delivery_pin',           label:'Delivery Partner PIN',  type:'text',   full:false}
 ];
+
+var DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function renderDaysGrid(selectedDays) {
+  document.getElementById('daysGrid').innerHTML = DAY_NAMES.map(function(d, i) {
+    var on = selectedDays.includes(i);
+    return '<button type="button" onclick="toggleDay(' + i + ',this)" data-day="' + i + '" style="padding:7px 13px;border-radius:20px;border:2px solid ' +
+      (on ? '#4a90d9' : '#ddd') + ';background:' + (on ? '#4a90d9' : '#fff') + ';color:' + (on ? '#fff' : '#555') +
+      ';font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">' + d + '</button>';
+  }).join('');
+}
+function toggleDay(i, btn) {
+  var on = btn.style.background === 'rgb(74, 144, 217)' || btn.style.background === '#4a90d9';
+  btn.style.background = on ? '#fff' : '#4a90d9';
+  btn.style.color      = on ? '#555' : '#fff';
+  btn.style.borderColor = on ? '#ddd' : '#4a90d9';
+}
+function getSelectedDays() {
+  var days = [];
+  document.querySelectorAll('#daysGrid button').forEach(function(b) {
+    if (b.style.background === 'rgb(74, 144, 217)' || b.style.background === '#4a90d9') days.push(+b.dataset.day);
+  });
+  return days;
+}
+function updateStoreStatusUI() {
+  var isOpen = appSettings.store_open !== 'false';
+  document.getElementById('storeStatusBadge').innerHTML = isOpen
+    ? '<span style="color:#43a047">&#9679; OPEN</span>'
+    : '<span style="color:#f44336">&#9679; CLOSED</span>';
+  var btn = document.getElementById('storeToggleBtn');
+  btn.textContent = isOpen ? 'Close Store Now' : 'Open Store Now';
+  btn.className   = 'btn ' + (isOpen ? 'btn-danger' : 'btn-success');
+}
+async function toggleStoreOpen() {
+  var isOpen = appSettings.store_open !== 'false';
+  var newVal = isOpen ? 'false' : 'true';
+  try {
+    var r = await apiFetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: adminToken, settings: { store_open: newVal } }) });
+    if (r && r.success) { appSettings.store_open = newVal; updateStoreStatusUI(); showToast(newVal === 'true' ? 'Store is now OPEN' : 'Store is now CLOSED', 'success'); }
+    else showToast((r && r.error) || 'Failed', 'error');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+async function saveHours() {
+  var openTime  = document.getElementById('set_open_time').value;
+  var closeTime = document.getElementById('set_close_time').value;
+  var days      = getSelectedDays().join(',');
+  try {
+    var r = await apiFetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: adminToken, settings: { open_time: openTime, close_time: closeTime, open_days: days } }) });
+    if (r && r.success) {
+      Object.assign(appSettings, { open_time: openTime, close_time: closeTime, open_days: days });
+      showToast('Hours saved!', 'success');
+    } else showToast((r && r.error) || 'Failed', 'error');
+  } catch(e) { showToast(e.message, 'error'); }
+}
 async function loadSettings() {
   try {
     var s = await apiFetch('/api/settings');
@@ -1075,6 +1158,12 @@ async function loadSettings() {
         '<input id="set_' + f.key + '" type="' + f.type + '" value="' + escAttr(String(s[f.key] || '')) + '"></div>';
     }).join('');
     document.getElementById('settingsForm').innerHTML = html;
+    // Store status UI
+    updateStoreStatusUI();
+    document.getElementById('set_open_time').value  = s.open_time  || '';
+    document.getElementById('set_close_time').value = s.close_time || '';
+    var selectedDays = s.open_days ? s.open_days.split(',').map(Number) : [0,1,2,3,4,5,6];
+    renderDaysGrid(selectedDays);
   } catch(e) { showToast(e.message, 'error'); }
 }
 async function saveSettings() {
@@ -1730,6 +1819,7 @@ async function runExport(format, btn) {
     btn.disabled = false; btn.textContent = origText;
   }
 }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 </script>
 </body>
 </html>

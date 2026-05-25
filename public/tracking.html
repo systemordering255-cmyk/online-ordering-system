@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4a90d9">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>Track Order</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -770,6 +773,7 @@ async function submitComplaintForm() {
     msgEl.className = 'fb-msg error'; msgEl.style.display = 'block';
   }
 }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 </script>
 </body>
 </html>

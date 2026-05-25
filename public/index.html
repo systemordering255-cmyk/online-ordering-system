@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0c831f">
+<link rel="apple-touch-icon" href="/icon.svg">
 <title>Store</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -137,6 +140,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f3f3;color:#1c1c1c}
 .empty{text-align:center;padding:60px 20px;color:#aaa}
 .empty svg{margin-bottom:12px;opacity:.4}
 .loading-state{text-align:center;padding:60px;color:#0c831f;font-size:15px}
+.store-closed-bar{background:#b91c1c;color:#fff;padding:11px 16px;text-align:center;font-size:14px;font-weight:600;display:none;letter-spacing:.2px}
+.store-closed-bar.show{display:block}
 @media(max-width:768px){
   .sidebar{display:none}.mobile-cats{display:flex}.page-body{flex-direction:column}
   .content{padding:12px}.product-grid{grid-template-columns:repeat(2,1fr);gap:10px}
@@ -184,6 +189,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f3f3f3;color:#1c1c1c}
   </div>
 </header>
 
+<div class="store-closed-bar" id="storeClosedBar">
+  &#128683; Store is currently closed &mdash; orders are not being accepted right now
+</div>
 <div class="delivery-bar">
   <span>&#128205; Delivery available</span>
   <span class="d-badge" id="deliveryBadge">in 45 mins</span>
@@ -333,6 +341,21 @@ function applyBranding() {
   if (settings.estimated_delivery_mins) {
     document.getElementById('deliveryBadge').textContent = 'in ' + settings.estimated_delivery_mins + ' mins';
   }
+  // Store open/closed banner
+  var isClosed = settings.store_open === 'false';
+  if (!isClosed && settings.open_time && settings.close_time) {
+    var now = new Date();
+    var openDays = (settings.open_days || '0,1,2,3,4,5,6').split(',').map(Number);
+    if (!openDays.includes(now.getDay())) {
+      isClosed = true;
+    } else {
+      var oh = parseInt(settings.open_time.split(':')[0]) * 60 + parseInt(settings.open_time.split(':')[1]);
+      var ch = parseInt(settings.close_time.split(':')[0]) * 60 + parseInt(settings.close_time.split(':')[1]);
+      var nowM = now.getHours() * 60 + now.getMinutes();
+      if (nowM < oh || nowM >= ch) isClosed = true;
+    }
+  }
+  if (isClosed) document.getElementById('storeClosedBar').classList.add('show');
 }
 
 function showOrderSuccessBanner(order) {
@@ -739,6 +762,7 @@ function showError(msg) {
 }
 function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
 </script>
 </body>
 </html>

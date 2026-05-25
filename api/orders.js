@@ -164,6 +164,25 @@ module.exports = async (req, res) => {
         const deliveryFee      = collectionMethod === 'Pickup' ? 0 : (parseFloat(settings.delivery_fee) || 0);
         const minOrder         = parseFloat(settings.minimum_order) || 0;
 
+        // Store open/closed check
+        if (settings.store_open === 'false') {
+          return res.json({ success: false, error: 'Store is currently closed. Please try again later.' });
+        }
+        if (settings.open_time && settings.close_time) {
+          const now      = new Date();
+          const openDays = (settings.open_days || '0,1,2,3,4,5,6').split(',').map(Number);
+          if (!openDays.includes(now.getDay())) {
+            return res.json({ success: false, error: 'Store is closed today. See you next time!' });
+          }
+          const [oh, om] = settings.open_time.split(':').map(Number);
+          const [ch, cm] = settings.close_time.split(':').map(Number);
+          const nowMins  = now.getHours() * 60 + now.getMinutes();
+          if (nowMins < oh * 60 + om || nowMins >= ch * 60 + cm) {
+            const fmt = t => { const [h,m]=t.split(':'); const hh=+h; return (hh%12||12)+':'+m+(hh<12?' AM':' PM'); };
+            return res.json({ success: false, error: `Store is closed. We\'re open ${fmt(settings.open_time)} – ${fmt(settings.close_time)}.` });
+          }
+        }
+
         // Validate stock and build items
         let subtotal = 0;
         const validatedItems = [];
