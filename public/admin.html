@@ -1246,10 +1246,15 @@ async function loadReviews() {
   try {
     var reviews = await apiFetch('/api/reviews?admin=true&token=' + encodeURIComponent(adminToken));
     renderReviewsTable(reviews);
-  } catch(e) { showToast(e.message, 'error'); }
+  } catch(e) {
+    document.getElementById('reviewsTableWrap').innerHTML = '<p style="padding:20px;color:#c00">Error: ' + esc(e.message) + '</p>';
+  }
 }
 function renderReviewsTable(reviews) {
-  if (reviews && reviews.error) { showToast(reviews.error, 'error'); return; }
+  if (reviews && reviews.error) {
+    document.getElementById('reviewsTableWrap').innerHTML = '<p style="padding:20px;color:#c00">Error: ' + esc(reviews.error) + '</p>';
+    return;
+  }
   if (!reviews || !reviews.length) { document.getElementById('reviewsTableWrap').innerHTML = '<p style="padding:20px;color:#999">No reviews yet.</p>'; return; }
   var html = '<table><thead><tr><th>Date</th><th>Order ID</th><th>Customer</th><th>Rating</th><th>Comment</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
     reviews.map(function(r) {

@@ -23,7 +23,8 @@ module.exports = async (req, res) => {
     if (req.method === 'GET' && req.query.admin) {
       const session = await validateAdminSession(req.query.token);
       if (!session) return res.status(401).json({ error: 'Unauthorized' });
-      const { data } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('reviews').select('*').order('created_at', { ascending: false });
+      if (error) return res.status(500).json({ error: error.message });
       return res.json(data || []);
     }
 
