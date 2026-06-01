@@ -110,6 +110,23 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .otp-verify-btn:disabled{opacity:.5;cursor:not-allowed}
 .otp-cancel-link{background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;padding:4px 8px}
 .otp-cancel-link:hover{color:#9ca3af}
+.btn-fail{background:rgba(239,68,68,.12);color:#f87171;border:2px solid rgba(239,68,68,.3);margin-bottom:8px}
+.btn-fail:hover{background:rgba(239,68,68,.25);border-color:#f87171}
+.dlv-id-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px}
+.dlv-id-modal{background:#1f2937;border:1px solid #374151;border-radius:20px;padding:28px 24px;width:100%;max-width:340px;text-align:center}
+.dlv-id-modal h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.dlv-id-badge{font-family:monospace;font-size:22px;font-weight:900;letter-spacing:3px;background:#111827;border:2px solid #374151;border-radius:12px;padding:14px 20px;margin:16px 0;color:#34d399}
+.dlv-id-note{font-size:12px;color:#6b7280;margin-bottom:18px}
+.dlv-id-close{width:100%;padding:13px;background:#059669;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+.fail-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px}
+.fail-modal{background:#1f2937;border:1px solid #374151;border-radius:20px;padding:24px;width:100%;max-width:340px}
+.fail-modal h2{font-size:18px;font-weight:700;margin-bottom:4px;color:#f9fafb}
+.fail-modal-sub{font-size:13px;color:#6b7280;margin-bottom:16px}
+.fail-reason-btn{width:100%;padding:11px 14px;margin-bottom:8px;background:#111827;border:1.5px solid #374151;border-radius:10px;color:#d1d5db;font-size:14px;cursor:pointer;text-align:left}
+.fail-reason-btn.selected{border-color:#f87171;color:#f87171;background:rgba(239,68,68,.1)}
+.fail-confirm-btn{width:100%;padding:13px;background:#dc2626;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px}
+.fail-confirm-btn:disabled{opacity:.4;cursor:not-allowed}
+.fail-cancel-link{background:none;border:none;color:#6b7280;font-size:12px;cursor:pointer;padding:6px 8px;width:100%;margin-top:4px}
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);
   background:#1f2937;border:1px solid #374151;color:#f9fafb;padding:10px 20px;
@@ -212,6 +229,39 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
         <button class="otp-verify-btn" id="otpVerifyBtn" onclick="submitOtp()">&#10003; Verify &amp; Deliver</button>
       </div>
       <button class="otp-cancel-link" onclick="closeOtpModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delivery ID success modal -->
+<div id="dlvIdModal" style="display:none">
+  <div class="dlv-id-modal-overlay">
+    <div class="dlv-id-modal">
+      <div style="font-size:40px;margin-bottom:8px" id="dlvIdIcon">&#10004;</div>
+      <h2 id="dlvIdTitle">Order Delivered!</h2>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:4px">Delivery ID</p>
+      <div class="dlv-id-badge" id="dlvIdBadge">DLV-XXXXXXXX</div>
+      <p class="dlv-id-note">Save this ID as proof of delivery. It is also recorded in the order notes.</p>
+      <button class="dlv-id-close" onclick="closeDlvIdModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Not delivered reason modal -->
+<div id="failModal" style="display:none">
+  <div class="fail-modal-overlay">
+    <div class="fail-modal">
+      <div style="font-size:32px;margin-bottom:8px">&#128683;</div>
+      <h2>Not Delivered</h2>
+      <p class="fail-modal-sub">Order: <span id="failModalOrderId"></span></p>
+      <p style="font-size:13px;color:#9ca3af;margin-bottom:10px">Select reason:</p>
+      <button class="fail-reason-btn" onclick="selectFailReason(this,'Customer not available')">&#128100; Customer not available</button>
+      <button class="fail-reason-btn" onclick="selectFailReason(this,'Wrong address')">&#128205; Wrong address</button>
+      <button class="fail-reason-btn" onclick="selectFailReason(this,'Customer refused delivery')">&#10060; Customer refused delivery</button>
+      <button class="fail-reason-btn" onclick="selectFailReason(this,'Could not locate address')">&#128269; Could not locate address</button>
+      <button class="fail-reason-btn" onclick="selectFailReason(this,'Other')">&#8226; Other</button>
+      <button class="fail-confirm-btn" id="failConfirmBtn" onclick="submitNotDelivered()" disabled>Confirm Not Delivered</button>
+      <button class="fail-cancel-link" onclick="closeFailModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -320,17 +370,18 @@ function deliveryCard(o) {
   var ageCls    = ageMin < 20 ? 'age-ok' : ageMin < 40 ? 'age-warn' : 'age-late';
   var agePct    = Math.min(100, (ageMin / 60) * 100);
 
+  var notDlvBtn = '<button class="action-btn btn-fail" onclick="openFailModal(\'' + esc(o.order_id) + '\')">&#128683; Not Delivered</button>';
   var actionBtn = '';
   if (isCOD && !collected) {
     actionBtn = '<button class="action-btn btn-cash" onclick="cashCollected(\'' + esc(o.order_id) + '\',this)">' +
-      '&#128176; Mark Cash Collected</button>';
+      '&#128176; Mark Cash Collected</button>' + notDlvBtn;
   } else {
     var readyMsg = (isCOD && collected)
       ? '<div style="font-size:12px;color:#34d399;margin-bottom:8px;text-align:center">&#10003; Cash collected</div>'
       : '';
     actionBtn = readyMsg +
       '<button class="action-btn btn-otp" onclick="openOtpModal(\'' + esc(o.order_id) + '\')">' +
-      '&#128273; Verify OTP &amp; Deliver</button>';
+      '&#128273; Verify OTP &amp; Deliver</button>' + notDlvBtn;
   }
 
   return '<div class="delivery-card">' +
@@ -412,7 +463,7 @@ async function submitOtp() {
     });
     vBtn.disabled = false; vBtn.textContent = 'Verify & Deliver';
     if (r && r.success) {
-      closeOtpModal(); showToast('Order delivered! OTP verified.', 'success'); loadOrders();
+      closeOtpModal(); loadOrders(); showDlvIdModal('&#10004;', 'Order Delivered!', r.deliveryId);
     } else if (r && r.error === 'OTP_EXPIRED') {
       errEl.textContent = 'OTP expired. Click "Resend OTP" to send a new one.';
     } else if (r && r.error === 'OTP_INVALID') {
@@ -444,6 +495,60 @@ async function resendOtp() {
       errEl.textContent = 'Failed: ' + ((r && r.error) ? r.error : 'Unknown error');
     }
   } catch(e) { rBtn.disabled = false; rBtn.textContent = 'Resend OTP'; errEl.textContent = 'Error: ' + e.message; }
+}
+
+// ── Delivery ID modal ─────────────────────────────────────────
+function showDlvIdModal(icon, title, deliveryId) {
+  document.getElementById('dlvIdIcon').textContent  = icon;
+  document.getElementById('dlvIdTitle').textContent = title;
+  document.getElementById('dlvIdBadge').textContent = deliveryId || '—';
+  document.getElementById('dlvIdModal').style.display = 'flex';
+}
+function closeDlvIdModal() {
+  document.getElementById('dlvIdModal').style.display = 'none';
+}
+
+// ── Not Delivered modal ───────────────────────────────────────
+var _failOrderId = '', _failReason = '';
+
+function openFailModal(orderId) {
+  _failOrderId = orderId;
+  _failReason  = '';
+  document.getElementById('failModalOrderId').textContent = orderId;
+  document.querySelectorAll('.fail-reason-btn').forEach(function(b){ b.classList.remove('selected'); });
+  document.getElementById('failConfirmBtn').disabled = true;
+  document.getElementById('failModal').style.display = 'flex';
+}
+function closeFailModal() {
+  document.getElementById('failModal').style.display = 'none';
+  _failOrderId = ''; _failReason = '';
+}
+function selectFailReason(btn, reason) {
+  document.querySelectorAll('.fail-reason-btn').forEach(function(b){ b.classList.remove('selected'); });
+  btn.classList.add('selected');
+  _failReason = reason;
+  document.getElementById('failConfirmBtn').disabled = false;
+}
+async function submitNotDelivered() {
+  var btn = document.getElementById('failConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    var r = await apiFetch('/api/delivery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'not-delivered', pin: deliveryPin, orderId: _failOrderId, reason: _failReason })
+    });
+    if (r && r.success) {
+      closeFailModal(); loadOrders();
+      showDlvIdModal('&#128683;', 'Delivery Failed - Recorded', r.deliveryId);
+    } else {
+      showToast((r && r.error) ? r.error : 'Failed to record.', 'error');
+      btn.disabled = false; btn.textContent = 'Confirm Not Delivered';
+    }
+  } catch(e) {
+    showToast(e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Confirm Not Delivered';
+  }
 }
 
 function getAgeMinutes(dateStr) {

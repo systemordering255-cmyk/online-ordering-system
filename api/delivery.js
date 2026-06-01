@@ -2,6 +2,13 @@ const guard = require('../lib/guard');
 const supabase = require('../lib/supabase');
 const email    = require('../lib/email');
 
+function generateDeliveryId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = 'DLV-';
+  for (let i = 0; i < 8; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
+
 async function verifyPin(pin) {
   const { data } = await supabase.from('settings').select('value').eq('key', 'delivery_pin').single();
   return String(pin) === String(data?.value || '5678');
@@ -38,7 +45,7 @@ module.exports = async (req, res) => {
   if (!guard(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { action, pin, orderId, otp } = req.body || {};
+  const { action, pin, orderId, otp, reason } = req.body || {};
 
   try {
     if (!(await verifyPin(pin))) return res.json({ error: 'Wrong PIN' });
@@ -66,9 +73,10 @@ module.exports = async (req, res) => {
 
       await supabase.from('delivery_otps').delete().eq('order_id', orderId);
 
+      const deliveryId = generateDeliveryId();
       const ts = new Date().toLocaleString('en-IN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12: false });
       const { data: ord } = await supabase.from('orders').select('notes').eq('order_id', orderId).single();
-      const note = `[${ts}] Delivered - OTP verified`;
+      const note = `[${ts}] Delivered - OTP verified | Delivery ID: ${deliveryId}`;
       await supabase.from('orders').update({
         order_status: 'Delivered',
         notes: ord?.notes ? `${ord.notes}\n${note}` : note
@@ -78,7 +86,7 @@ module.exports = async (req, res) => {
       const { data: o } = await supabase.from('orders').select('email, customer_name').eq('order_id', orderId).single();
       if (o) email.sendStatusUpdate(o.email, o.customer_name, orderId, 'Delivered', settings).catch(() => {});
 
-      return res.json({ success: true });
+      return res.json({ success: true, deliveryId });
     }
 
     if (action === 'resend-otp') {
@@ -88,6 +96,18 @@ module.exports = async (req, res) => {
       }
       await generateAndSendOtp(orderId);
       return res.json({ success: true });
+    }
+
+    if (action === 'not-delivered') {
+      const { data: ord } = await supabase.from('orders').select('notes').eq('order_id', orderId).single();
+      const deliveryId = generateDeliveryId();
+      const ts = new Date().toLocaleString('en-IN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12: false });
+      const note = `[${ts}] Delivery Failed - ${reason || 'No reason given'} | Delivery ID: ${deliveryId}`;
+      await supabase.from('orders').update({
+        order_status: 'Delivery Failed',
+        notes: ord?.notes ? `${ord.notes}\n${note}` : note
+      }).eq('order_id', orderId);
+      return res.json({ success: true, deliveryId });
     }
 
     if (action === 'cash-collected') {
