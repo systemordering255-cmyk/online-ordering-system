@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
       const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       const { data: stale } = await supabase
         .from('orders').select('*')
-        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery'])
+        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Ready for Pickup'])
         .lt('created_at', cutoff);
       for (const ord of stale || []) {
         const items = Array.isArray(ord.items_json) ? ord.items_json : [];
@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
       }
       const { data } = await supabase
         .from('orders').select('*')
-        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery'])
+        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Ready for Pickup'])
         .order('created_at', { ascending: false });
       return res.json(data || []);
     }
@@ -80,16 +80,20 @@ module.exports = async (req, res) => {
     }
 
     if (action === 'advance-status') {
-      const next = { 'Pending': 'Confirmed', 'Confirmed': 'Preparing', 'Preparing': 'Out for Delivery' };
-
-      const { data: ord } = await supabase.from('orders').select('order_status, payment_method, payment_status').eq('order_id', orderId).single();
+      const { data: ord } = await supabase.from('orders').select('order_status, payment_method, payment_status, collection_method').eq('order_id', orderId).single();
       if (!ord) return res.json({ error: 'Order not found' });
 
-      if (ord.order_status === 'Out for Delivery') return res.json({ error: 'OTP_REQUIRED' });
-      const nextStatus = next[ord.order_status];
+      const isPickup = ord.collection_method === 'Pickup';
+      const nextMap  = isPickup
+        ? { 'Pending': 'Confirmed', 'Confirmed': 'Preparing', 'Preparing': 'Ready for Pickup' }
+        : { 'Pending': 'Confirmed', 'Confirmed': 'Preparing', 'Preparing': 'Out for Delivery' };
+
+      if (isPickup  && ord.order_status === 'Ready for Pickup')  return res.json({ error: 'Already ready for pickup.' });
+      if (!isPickup && ord.order_status === 'Out for Delivery')   return res.json({ error: 'OTP_REQUIRED' });
+
+      const nextStatus = nextMap[ord.order_status];
       if (!nextStatus) return res.json({ error: 'Already at final status.' });
 
-      // Block dispatch if online payment not verified
       if (nextStatus === 'Out for Delivery' && ord.payment_method !== 'COD' && ord.payment_status !== 'Verified') {
         return res.json({ error: 'PAYMENT_NOT_VERIFIED' });
       }
@@ -103,6 +107,27 @@ module.exports = async (req, res) => {
       }
 
       return res.json({ success: true, otpSent });
+    }
+
+    if (action === 'pickup-handover') {
+      const { data: ord } = await supabase.from('orders').select('order_status, payment_method, payment_status, notes').eq('order_id', orderId).single();
+      if (!ord) return res.json({ error: 'Order not found.' });
+      if (ord.order_status !== 'Ready for Pickup') return res.json({ error: 'Order is not ready for pickup.' });
+      if (ord.payment_method === 'COD' && ord.payment_status !== 'Collected')
+        return res.json({ error: 'CASH_NOT_COLLECTED' });
+
+      const ts = new Date().toLocaleString('en-IN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12: false });
+      const note = `[${ts}] Picked up by customer`;
+      await supabase.from('orders').update({
+        order_status: 'Delivered',
+        notes: ord.notes ? `${ord.notes}\n${note}` : note
+      }).eq('order_id', orderId);
+
+      const settings = await getSettings();
+      const { data: o } = await supabase.from('orders').select('email, customer_name').eq('order_id', orderId).single();
+      if (o) email.sendStatusUpdate(o.email, o.customer_name, orderId, 'Delivered', settings).catch(() => {});
+
+      return res.json({ success: true });
     }
 
     if (action === 'cancel') {

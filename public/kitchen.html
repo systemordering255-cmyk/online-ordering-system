@@ -45,7 +45,11 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .logout-btn{background:transparent;border:1px solid #374151;color:#9ca3af;
   padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px}
 
-.board{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:20px;flex:1;align-items:start}
+.board{display:flex;flex-direction:column;gap:0;padding:20px;flex:1}
+.board-section{margin-bottom:28px}
+.board-section-title{font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 4px 10px;display:flex;align-items:center;gap:8px}
+.board-section-title.delivery{color:#4ade80}.board-section-title.pickup{color:#c084fc}
+.board-cols{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-items:start}
 
 .col{border-radius:14px;overflow:hidden;background:#1f2937;border:1px solid #374151}
 .col-header{padding:14px 16px;display:flex;align-items:center;
@@ -63,6 +67,8 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .col-preparing .col-title{color:#c084fc}
 .col-delivery  .col-header{background:rgba(34,197,94,.1);border-bottom-color:rgba(34,197,94,.2)}
 .col-delivery  .col-title{color:#4ade80}
+.col-pickup-ready .col-header{background:rgba(168,85,247,.15);border-bottom-color:rgba(168,85,247,.3)}
+.col-pickup-ready .col-title{color:#e879f9}
 
 .order-card{background:#111827;border-radius:10px;padding:14px;border:1px solid #374151;transition:border-color .2s}
 .order-card:hover{border-color:#6b7280}
@@ -86,6 +92,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .advance-btn:active{transform:scale(.97)}
 .advance-btn:disabled{opacity:.4;cursor:not-allowed}
 .advance-btn.cash-collect{background:rgba(249,115,22,.15);color:#fb923c;border:1px solid rgba(249,115,22,.3)}
+.advance-btn.btn-handover{background:rgba(16,185,129,.2);color:#34d399;border:1px solid rgba(16,185,129,.4)}
 
 .age-bar{height:3px;border-radius:2px;margin-bottom:10px;overflow:hidden;background:#374151}
 .age-fill{height:100%;border-radius:2px;transition:width .5s}
@@ -281,24 +288,21 @@ function startAutoRefresh() {
   }, 1000);
 }
 
-var COLS = [
-  { key: 'Pending',          cls: 'col-pending',   icon: '', label: 'Pending',          next: 'Confirm Order' },
-  { key: 'Confirmed',        cls: 'col-confirmed',  icon: '', label: 'Confirmed',         next: String.fromCodePoint(0x1F468,0x200D,0x1F373) + ' Start Preparing' },
-  { key: 'Preparing',        cls: 'col-preparing',  icon: String.fromCodePoint(0x1F468,0x200D,0x1F373), label: 'Preparing',         next: ' Out for Delivery' },
-  { key: 'Out for Delivery', cls: 'col-delivery',   icon: '', label: 'Out for Delivery',  next: ' Mark Delivered' }
+var DELIVERY_COLS = [
+  { key: 'Pending',          cls: 'col-pending',   icon: '🕐', label: 'Pending',          next: 'Confirm Order' },
+  { key: 'Confirmed',        cls: 'col-confirmed',  icon: '✅', label: 'Confirmed',         next: String.fromCodePoint(0x1F468,0x200D,0x1F373) + ' Start Preparing' },
+  { key: 'Preparing',        cls: 'col-preparing',  icon: String.fromCodePoint(0x1F468,0x200D,0x1F373), label: 'Preparing', next: '🛵 Out for Delivery' },
+  { key: 'Out for Delivery', cls: 'col-delivery',   icon: '🛵', label: 'Out for Delivery',  next: '' }
+];
+var PICKUP_COLS = [
+  { key: 'Pending',          cls: 'col-pending',       icon: '🕐', label: 'Pending',          next: 'Confirm Order' },
+  { key: 'Confirmed',        cls: 'col-confirmed',      icon: '✅', label: 'Confirmed',         next: String.fromCodePoint(0x1F468,0x200D,0x1F373) + ' Start Preparing' },
+  { key: 'Preparing',        cls: 'col-preparing',      icon: String.fromCodePoint(0x1F468,0x200D,0x1F373), label: 'Preparing', next: '🏪 Ready for Pickup' },
+  { key: 'Ready for Pickup', cls: 'col-pickup-ready',   icon: '🏪', label: 'Ready for Pickup', next: '' }
 ];
 
-function renderBoard(orders) {
-  var currentIds  = orders.map(function(o){ return o.order_id; });
-  var isFirstLoad = knownOrderIds.length === 0;
-  var newIds      = currentIds.filter(function(id){ return knownOrderIds.indexOf(id) === -1; });
-  if (!isFirstLoad && newIds.length) {
-    showToast(newIds.length + ' new order' + (newIds.length > 1 ? 's' : '') + '!', 'success');
-    playBeep();
-  }
-  knownOrderIds = currentIds;
-
-  var html = COLS.map(function(col) {
+function renderCols(cols, orders) {
+  return cols.map(function(col) {
     var colOrders = orders.filter(function(o){ return o.order_status === col.key; });
     return '<div class="col ' + col.cls + '">' +
       '<div class="col-header">' +
@@ -313,6 +317,31 @@ function renderBoard(orders) {
       '</div>' +
     '</div>';
   }).join('');
+}
+
+function renderBoard(orders) {
+  var currentIds  = orders.map(function(o){ return o.order_id; });
+  var isFirstLoad = knownOrderIds.length === 0;
+  var newIds      = currentIds.filter(function(id){ return knownOrderIds.indexOf(id) === -1; });
+  if (!isFirstLoad && newIds.length) {
+    showToast(newIds.length + ' new order' + (newIds.length > 1 ? 's' : '') + '!', 'success');
+    playBeep();
+  }
+  knownOrderIds = currentIds;
+
+  var deliveryOrders = orders.filter(function(o){ return o.collection_method !== 'Pickup'; });
+  var pickupOrders   = orders.filter(function(o){ return o.collection_method === 'Pickup'; });
+
+  var html =
+    '<div class="board-section">' +
+      '<div class="board-section-title delivery">🛵 Delivery Orders (' + deliveryOrders.length + ')</div>' +
+      '<div class="board-cols">' + renderCols(DELIVERY_COLS, deliveryOrders) + '</div>' +
+    '</div>' +
+    '<div class="board-section">' +
+      '<div class="board-section-title pickup">🏪 Shop Pickup Orders (' + pickupOrders.length + ')</div>' +
+      '<div class="board-cols">' + renderCols(PICKUP_COLS, pickupOrders) + '</div>' +
+    '</div>';
+
   document.getElementById('board').innerHTML = html;
 
   if (!isFirstLoad) {
@@ -341,6 +370,12 @@ function orderCard(o, col) {
       btnHtml = '<button class="advance-btn cash-collect" onclick="markCashCollected(\'' + esc(o.order_id) + '\',this)">&#128176; Cash Collected</button>';
     } else {
       btnHtml = '<div style="text-align:center;padding:8px;font-size:12px;color:#6b7280">&#128666; Awaiting delivery confirmation</div>';
+    }
+  } else if (col.key === 'Ready for Pickup') {
+    if (o.payment_method === 'COD' && o.payment_status !== 'Collected') {
+      btnHtml = '<button class="advance-btn cash-collect" onclick="markCashCollected(\'' + esc(o.order_id) + '\',this)">&#128176; Collect Cash First</button>';
+    } else {
+      btnHtml = '<button class="advance-btn btn-handover" onclick="pickupHandover(\'' + esc(o.order_id) + '\',this)">&#10003; Hand Over to Customer</button>';
     }
   } else {
     btnHtml = '<button class="advance-btn" onclick="advance(\'' + esc(o.order_id) + '\',this)">' + col.next + '</button>' +
@@ -404,6 +439,25 @@ async function markCashCollected(orderId, btn) {
   }
 }
 
+
+async function pickupHandover(orderId, btn) {
+  btn.disabled = true; btn.textContent = 'Confirming...';
+  try {
+    var r = await apiFetch('/api/kitchen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'pickup-handover', pin: kitchenPin, orderId: orderId })
+    });
+    if (r && r.error === 'CASH_NOT_COLLECTED') {
+      showToast('Collect cash first before handing over.', 'error');
+      btn.disabled = false; btn.textContent = '✓ Hand Over to Customer';
+    } else if (r && r.error) {
+      showToast(r.error, 'error'); btn.disabled = false; btn.textContent = '✓ Hand Over to Customer';
+    } else {
+      showToast('Order picked up by customer!', 'success'); loadBoard();
+    }
+  } catch(e) { showToast(e.message, 'error'); btn.disabled = false; btn.textContent = '✓ Hand Over to Customer'; }
+}
 
 var _cancelOrderId = '';
 function openCancelModal(orderId) {
