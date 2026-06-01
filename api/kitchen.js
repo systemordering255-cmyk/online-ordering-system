@@ -66,7 +66,7 @@ module.exports = async (req, res) => {
       }
       const { data } = await supabase
         .from('orders').select('*')
-        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Out for Delivery', 'Ready for Pickup'])
+        .in('order_status', ['Pending', 'Confirmed', 'Preparing', 'Ready for Pickup'])
         .order('created_at', { ascending: false });
       return res.json(data || []);
     }
