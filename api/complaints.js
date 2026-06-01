@@ -1,3 +1,4 @@
+const guard = require('../lib/guard');
 const supabase = require('../lib/supabase');
 const { Resend } = require('resend');
 const { validateAdminSession } = require('./admin-auth');
@@ -9,6 +10,7 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (!guard(req, res)) return;
 
   try {
     if (req.method === 'GET') {
