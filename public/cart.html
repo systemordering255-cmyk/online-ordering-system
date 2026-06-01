@@ -90,6 +90,12 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
   .header h1{font-size:17px}
   .submit-btn{font-size:15px;padding:14px}
 }
+.addr-two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.area-wrap{position:relative}
+.area-suggestions{position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.18);z-index:200;max-height:210px;overflow-y:auto;display:none}
+.area-suggestion{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f5f5f5;line-height:1.4;color:#333}
+.area-suggestion:last-child{border-bottom:none}
+.area-suggestion:hover{background:#f0f7ff}
 .pick-map-btn{margin-top:8px;background:#f0f7ff;border:1.5px solid #4a90d9;color:#4a90d9;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%}
 .pick-map-btn:hover{background:#e0efff}
 .map-overlay{position:fixed;inset:0;background:#fff;z-index:9999;display:flex;flex-direction:column;transition:opacity .2s}
@@ -189,9 +195,32 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f8f9fa;color:#333}
         <label>Email *</label>
         <input id="custEmail" type="email" placeholder="For order updates" required>
       </div>
-      <div class="form-group" id="addressGroup">
-        <label>Delivery Address *</label>
-        <textarea id="custAddress" placeholder="Full address incl. flat, street, landmark..." required></textarea>
+      <div id="addressGroup" style="display:none">
+        <div class="form-group">
+          <label>Flat / House Number *</label>
+          <input id="custFlat" type="text" placeholder="e.g. 101, B-Wing, 3rd Floor">
+        </div>
+        <div class="form-group">
+          <label>Society / Area *</label>
+          <div class="area-wrap">
+            <input id="custArea" type="text" placeholder="Type your area or society name..." autocomplete="off" oninput="onAreaSearch(this.value)">
+            <div class="area-suggestions" id="areaSuggestions"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>City *</label>
+          <input id="custCity" type="text" placeholder="City">
+        </div>
+        <div class="addr-two-col">
+          <div class="form-group">
+            <label>State *</label>
+            <input id="custState" type="text" placeholder="State">
+          </div>
+          <div class="form-group">
+            <label>PIN Code *</label>
+            <input id="custPincode" type="text" placeholder="Auto-filled" maxlength="6" pattern="[0-9]{6}">
+          </div>
+        </div>
         <button type="button" class="pick-map-btn" onclick="openMapPicker()">&#128205; Pick on Map</button>
       </div>
       <div class="form-group">
@@ -442,16 +471,14 @@ function selectCollection(method) {
   selectedCollection = method;
   document.getElementById('deliveryOpt').classList.toggle('selected', method === 'Delivery');
   document.getElementById('pickupOpt').classList.toggle('selected', method === 'Pickup');
-  var addrInput = document.getElementById('custAddress');
-  if (method === 'Pickup') {
-    document.getElementById('addressGroup').style.display = 'none';
-    addrInput.required = false; addrInput.value = '';
-    document.getElementById('checkoutTitle').textContent = 'Your Details';
-  } else {
-    document.getElementById('addressGroup').style.display = 'block';
-    addrInput.required = true;
-    document.getElementById('checkoutTitle').textContent = 'Delivery Details';
-  }
+  var isDelivery = method === 'Delivery';
+  document.getElementById('addressGroup').style.display = isDelivery ? 'block' : 'none';
+  ['custFlat','custArea','custCity','custState','custPincode'].forEach(function(id) {
+    var el = document.getElementById(id);
+    el.required = isDelivery;
+    if (!isDelivery) el.value = '';
+  });
+  document.getElementById('checkoutTitle').textContent = isDelivery ? 'Delivery Details' : 'Your Details';
   checkOffers();
 }
 
@@ -514,7 +541,7 @@ async function submitOrder(e) {
     customerName:     document.getElementById('custName').value.trim(),
     phone:            document.getElementById('custPhone').value.trim(),
     email:            document.getElementById('custEmail').value.trim(),
-    address:          selectedCollection === 'Pickup' ? 'Store Pickup' : document.getElementById('custAddress').value.trim(),
+    address:          selectedCollection === 'Pickup' ? 'Store Pickup' : buildFullAddress(),
     notes:            document.getElementById('custNotes').value.trim(),
     paymentMethod:    selectedPayment,
     collectionMethod: selectedCollection,
@@ -553,9 +580,69 @@ function showError(msg) {
 function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 
+function buildFullAddress() {
+  var flat   = document.getElementById('custFlat').value.trim();
+  var area   = document.getElementById('custArea').value.trim();
+  var city   = document.getElementById('custCity').value.trim();
+  var state  = document.getElementById('custState').value.trim();
+  var pin    = document.getElementById('custPincode').value.trim();
+  return [flat, area, city, state, pin].filter(Boolean).join(', ');
+}
+
+// ── Area autocomplete ────────────────────────────────────────
+var _areaSuggestions = [], _areaSearchTimer = null;
+
+function onAreaSearch(query) {
+  clearTimeout(_areaSearchTimer);
+  var box = document.getElementById('areaSuggestions');
+  if (!query || query.length < 3) { box.style.display = 'none'; return; }
+  box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">Searching...</div>';
+  box.style.display = 'block';
+  _areaSearchTimer = setTimeout(async function() {
+    try {
+      var r = await fetch('https://photon.komoot.io/api/?q=' + encodeURIComponent(query) + '&limit=6&lang=en');
+      var d = await r.json();
+      _areaSuggestions = d.features || [];
+      if (!_areaSuggestions.length) {
+        box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">No results found</div>';
+        return;
+      }
+      box.innerHTML = _areaSuggestions.map(function(s, i) {
+        var p = s.properties;
+        var name = p.name || p.street || p.city || '';
+        var city  = p.city || p.town || p.village || p.county || '';
+        var state = p.state || '';
+        var sub   = [city, state].filter(Boolean).join(', ');
+        return '<div class="area-suggestion" onclick="pickArea(' + i + ')">' +
+          esc(name) + (sub ? '<br><small style="color:#888">' + esc(sub) + '</small>' : '') +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      box.innerHTML = '<div class="area-suggestion" style="color:#f00;cursor:default">Search failed</div>';
+    }
+  }, 500);
+}
+
+function pickArea(idx) {
+  var s = _areaSuggestions[idx];
+  if (!s) return;
+  var p = s.properties;
+  document.getElementById('custArea').value = p.name || p.street || p.city || '';
+  if (p.city || p.town || p.village || p.county)
+    document.getElementById('custCity').value = p.city || p.town || p.village || p.county || '';
+  if (p.state)   document.getElementById('custState').value = p.state;
+  if (p.postcode) document.getElementById('custPincode').value = p.postcode.replace(/\s/g, '');
+  document.getElementById('areaSuggestions').style.display = 'none';
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#custArea') && !e.target.closest('#areaSuggestions'))
+    document.getElementById('areaSuggestions').style.display = 'none';
+});
+
 // ── Map picker ──────────────────────────────────────────────
 var _cartMap = null, _mapGeocodeTimer = null, _mapSearchTimer = null;
-var _mapSuggestions = [];
+var _mapSuggestions = [], _lastGeocode = null;
 
 function buildAddress(d) {
   var a = d.address || {};
@@ -623,6 +710,7 @@ async function reverseGeocodeCart(lat, lng) {
               '&format=json&zoom=18&addressdetails=1';
     var r = await fetch(url, { headers: { 'Accept-Language': 'en' } });
     var d = await r.json();
+    _lastGeocode = d;
     var addr = buildAddress(d);
     document.getElementById('mapAddrText').textContent = addr || 'Address not found';
   } catch(e) {
@@ -678,7 +766,19 @@ function confirmMapLocation() {
     document.getElementById('mapAddrText').textContent = 'Move the map to select an address first.';
     return;
   }
-  document.getElementById('custAddress').value = addr;
+  if (_lastGeocode) {
+    var a = _lastGeocode.address || {};
+    var area = a.neighbourhood || a.suburb || a.quarter || a.residential || a.road || a.pedestrian || '';
+    var city = a.city || a.town || a.village || a.county || '';
+    var state = a.state || '';
+    var pin   = a.postcode || '';
+    if (area)  document.getElementById('custArea').value  = area;
+    if (city)  document.getElementById('custCity').value  = city;
+    if (state) document.getElementById('custState').value = state;
+    if (pin)   document.getElementById('custPincode').value = pin.replace(/\s/g, '');
+  } else {
+    document.getElementById('custArea').value = addr;
+  }
   closeMapPicker();
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function(){});
