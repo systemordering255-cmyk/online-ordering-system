@@ -13,10 +13,6 @@ const SESSION_EXPIRY_MS  = 30 * 24 * 60 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;  // 60s between OTP sends
 const MAX_ATTEMPTS       = 5;
 
-function hashOtp(otp) {
-  return crypto.createHash('sha256').update(String(otp)).digest('hex');
-}
-
 function normalizePhone(phone) {
   phone = String(phone || '').trim().replace(/[\s\-\(\)]/g, '');
   if (phone.startsWith('+91')) phone = phone.slice(3);
@@ -83,7 +79,7 @@ module.exports = async (req, res) => {
       await supabase.from('otp_sessions').insert({
         phone:      normalizedPhone,
         email:      normalizedEmail,
-        otp:        hashOtp(otpCode),   // store hash, never plaintext
+        otp:        otpCode,
         expires_at: expiresAt,
         attempts:   0
       });
@@ -127,7 +123,7 @@ module.exports = async (req, res) => {
         return res.json({ success: false, error: 'Too many failed attempts. Please request a new OTP.' });
       }
 
-      if (hashOtp(String(otp).trim()) !== otpRow.otp) {
+      if (String(otp).trim() !== String(otpRow.otp)) {
         const newAttempts = (otpRow.attempts || 0) + 1;
         await supabase.from('otp_sessions').update({ attempts: newAttempts }).eq('phone', normalizedPhone);
         const left = MAX_ATTEMPTS - newAttempts;
