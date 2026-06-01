@@ -7,8 +7,14 @@ const transporter = nodemailer.createTransport({
   auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
 });
 
-const OTP_EXPIRY_MS     = 15 * 60 * 1000;  // 15 minutes
-const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const OTP_EXPIRY_MS      = 15 * 60 * 1000;
+const SESSION_EXPIRY_MS  = 30 * 24 * 60 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;  // 60s between OTP sends
+const MAX_ATTEMPTS       = 5;
+
+function hashOtp(otp) {
+  return crypto.createHash('sha256').update(String(otp)).digest('hex');
+}
 
 function normalizePhone(phone) {
   phone = String(phone || '').trim().replace(/[\s\-\(\)]/g, '');
@@ -52,18 +58,32 @@ module.exports = async (req, res) => {
       }
       const normalizedEmail = email.trim().toLowerCase();
 
+      // Rate limit: enforce 60s cooldown between OTP requests
+      const { data: existing } = await supabase
+        .from('otp_sessions')
+        .select('expires_at')
+        .eq('phone', normalizedPhone)
+        .single();
+
+      if (existing) {
+        const sentAt  = new Date(existing.expires_at).getTime() - OTP_EXPIRY_MS;
+        const elapsed = Date.now() - sentAt;
+        if (elapsed < RESEND_COOLDOWN_MS) {
+          const wait = Math.ceil((RESEND_COOLDOWN_MS - elapsed) / 1000);
+          return res.json({ success: false, error: `Please wait ${wait} seconds before requesting a new OTP.` });
+        }
+      }
+
       const otpCode  = String(100000 + Math.floor(Math.random() * 900000));
       const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS).toISOString();
 
-      // Delete any existing OTP for this phone
       await supabase.from('otp_sessions').delete().eq('phone', normalizedPhone);
-
-      // Store new OTP
       await supabase.from('otp_sessions').insert({
-        phone: normalizedPhone,
-        email: normalizedEmail,
-        otp: otpCode,
-        expires_at: expiresAt
+        phone:      normalizedPhone,
+        email:      normalizedEmail,
+        otp:        hashOtp(otpCode),   // store hash, never plaintext
+        expires_at: expiresAt,
+        attempts:   0
       });
 
       const bizName = await getBusinessName();
@@ -88,17 +108,31 @@ module.exports = async (req, res) => {
 
       const { data: otpRow } = await supabase
         .from('otp_sessions')
-        .select('otp, expires_at, email')
+        .select('otp, expires_at, email, attempts')
         .eq('phone', normalizedPhone)
         .single();
 
       if (!otpRow) return res.json({ success: false, error: 'No OTP found. Please request a new one.' });
+
       if (new Date(otpRow.expires_at) < new Date()) {
         await supabase.from('otp_sessions').delete().eq('phone', normalizedPhone);
         return res.json({ success: false, error: 'OTP expired. Please request a new one.' });
       }
-      if (String(otp).trim() !== String(otpRow.otp)) {
-        return res.json({ success: false, error: 'Incorrect OTP. Please try again.' });
+
+      // Brute-force lockout
+      if ((otpRow.attempts || 0) >= MAX_ATTEMPTS) {
+        await supabase.from('otp_sessions').delete().eq('phone', normalizedPhone);
+        return res.json({ success: false, error: 'Too many failed attempts. Please request a new OTP.' });
+      }
+
+      if (hashOtp(String(otp).trim()) !== otpRow.otp) {
+        const newAttempts = (otpRow.attempts || 0) + 1;
+        await supabase.from('otp_sessions').update({ attempts: newAttempts }).eq('phone', normalizedPhone);
+        const left = MAX_ATTEMPTS - newAttempts;
+        return res.json({ success: false, error: left > 0
+          ? `Incorrect OTP. ${left} attempt${left === 1 ? '' : 's'} remaining.`
+          : 'Too many failed attempts. Please request a new OTP.'
+        });
       }
 
       // OTP verified — delete it
@@ -106,7 +140,6 @@ module.exports = async (req, res) => {
 
       const verifiedEmail = otpRow.email || normalizedEmail;
 
-      // Look up customer name
       const { data: customer } = await supabase
         .from('customers')
         .select('name')
@@ -114,14 +147,13 @@ module.exports = async (req, res) => {
         .single();
       const name = customer?.name || normalizedPhone;
 
-      // Create session
       const sessionToken = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + SESSION_EXPIRY_MS).toISOString();
+      const expiresAt    = new Date(Date.now() + SESSION_EXPIRY_MS).toISOString();
 
       await supabase.from('customer_sessions').insert({
-        token: sessionToken,
-        phone: normalizedPhone,
-        email: verifiedEmail,
+        token:      sessionToken,
+        phone:      normalizedPhone,
+        email:      verifiedEmail,
         name,
         expires_at: expiresAt
       });
