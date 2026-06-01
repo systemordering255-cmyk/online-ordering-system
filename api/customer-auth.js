@@ -1,11 +1,8 @@
 const supabase = require('../lib/supabase');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const OTP_EXPIRY_MS     = 15 * 60 * 1000;  // 15 minutes
 const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -68,9 +65,8 @@ module.exports = async (req, res) => {
 
       const bizName = await getBusinessName();
 
-      // Send OTP email via Gmail
-      await transporter.sendMail({
-        from:    `"${bizName}" <${process.env.GMAIL_USER}>`,
+      await resend.emails.send({
+        from:    `${bizName} <onboarding@resend.dev>`,
         to:      normalizedEmail,
         subject: `${bizName} - Your Login OTP`,
         html:    `<p>Hello,</p>
