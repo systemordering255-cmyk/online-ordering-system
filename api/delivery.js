@@ -110,6 +110,18 @@ module.exports = async (req, res) => {
       return res.json({ success: true, deliveryId });
     }
 
+    if (action === 'get-completed') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from('orders')
+        .select('order_id, customer_name, order_status, notes, created_at')
+        .in('order_status', ['Delivered', 'Delivery Failed'])
+        .gte('created_at', startOfDay.toISOString())
+        .order('created_at', { ascending: false });
+      return res.json(data || []);
+    }
+
     if (action === 'cash-collected') {
       const { data: ord } = await supabase.from('orders').select('payment_method').eq('order_id', orderId).single();
       if (!ord) return res.json({ error: 'Order not found.' });
