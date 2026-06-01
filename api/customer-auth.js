@@ -10,8 +10,7 @@ const transporter = nodemailer.createTransport({
 
 const OTP_EXPIRY_MS      = 15 * 60 * 1000;
 const SESSION_EXPIRY_MS  = 30 * 24 * 60 * 60 * 1000;
-const RESEND_COOLDOWN_MS = 60 * 1000;  // 60s between OTP sends
-const MAX_ATTEMPTS       = 5;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 function normalizePhone(phone) {
   phone = String(phone || '').trim().replace(/[\s\-\(\)]/g, '');
@@ -76,13 +75,13 @@ module.exports = async (req, res) => {
       const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS).toISOString();
 
       await supabase.from('otp_sessions').delete().eq('phone', normalizedPhone);
-      await supabase.from('otp_sessions').insert({
+      const { error: insertErr } = await supabase.from('otp_sessions').insert({
         phone:      normalizedPhone,
         email:      normalizedEmail,
         otp:        otpCode,
         expires_at: expiresAt,
-        attempts:   0
       });
+      if (insertErr) throw new Error('Failed to save OTP. Please try again.');
 
       const bizName = await getBusinessName();
 
@@ -106,7 +105,7 @@ module.exports = async (req, res) => {
 
       const { data: otpRow } = await supabase
         .from('otp_sessions')
-        .select('otp, expires_at, email, attempts')
+        .select('otp, expires_at, email')
         .eq('phone', normalizedPhone)
         .single();
 
@@ -117,20 +116,8 @@ module.exports = async (req, res) => {
         return res.json({ success: false, error: 'OTP expired. Please request a new one.' });
       }
 
-      // Brute-force lockout
-      if ((otpRow.attempts || 0) >= MAX_ATTEMPTS) {
-        await supabase.from('otp_sessions').delete().eq('phone', normalizedPhone);
-        return res.json({ success: false, error: 'Too many failed attempts. Please request a new OTP.' });
-      }
-
       if (String(otp).trim() !== String(otpRow.otp)) {
-        const newAttempts = (otpRow.attempts || 0) + 1;
-        await supabase.from('otp_sessions').update({ attempts: newAttempts }).eq('phone', normalizedPhone);
-        const left = MAX_ATTEMPTS - newAttempts;
-        return res.json({ success: false, error: left > 0
-          ? `Incorrect OTP. ${left} attempt${left === 1 ? '' : 's'} remaining.`
-          : 'Too many failed attempts. Please request a new OTP.'
-        });
+        return res.json({ success: false, error: 'Incorrect OTP. Please try again.' });
       }
 
       // OTP verified — delete it
