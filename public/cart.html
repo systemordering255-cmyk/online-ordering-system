@@ -108,6 +108,9 @@ button{touch-action:manipulation}
 .area-suggestion{padding:10px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid #f2f4f2;line-height:1.4;color:var(--text)}
 .area-suggestion:last-child{border-bottom:none}
 .area-suggestion:hover{background:var(--brand-50)}
+.area-manual{color:var(--brand);font-weight:700;border-top:1px solid var(--line);background:#fafcfa}
+.suggest-toggle{background:none;border:1.5px solid #dfe5e1;color:var(--muted);border-radius:14px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s}
+.suggest-toggle.on{border-color:var(--brand);color:var(--brand);background:var(--brand-50)}
 .pick-map-btn{margin-top:8px;background:var(--brand-50);border:1.5px solid var(--brand);color:var(--brand);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;transition:all .15s}
 .pick-map-btn:hover{background:var(--brand);color:#fff}
 .map-overlay{position:fixed;inset:0;background:#fff;z-index:9999;display:flex;flex-direction:column;transition:opacity .2s}
@@ -214,7 +217,10 @@ button{touch-action:manipulation}
           <input id="custFlat" type="text" placeholder="e.g. 101, B-Wing, 3rd Floor">
         </div>
         <div class="form-group">
-          <label>Society / Area *</label>
+          <label style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <span>Society / Area *</span>
+            <button type="button" class="suggest-toggle on" id="suggestToggle" onclick="toggleAreaSuggest()">Auto-suggest: ON</button>
+          </label>
           <div class="area-wrap">
             <input id="custArea" type="text" placeholder="Type your area or society name..." autocomplete="off" oninput="onAreaSearch(this.value)">
             <div class="area-suggestions" id="areaSuggestions"></div>
@@ -604,13 +610,34 @@ function buildFullAddress() {
 }
 
 // ── Area autocomplete ────────────────────────────────────────
-var _areaSuggestions = [], _areaSearchTimer = null;
+var _areaSuggestions = [], _areaSearchTimer = null, _areaSuggestOn = true;
+
+function toggleAreaSuggest() {
+  _areaSuggestOn = !_areaSuggestOn;
+  var btn = document.getElementById('suggestToggle');
+  btn.textContent = 'Auto-suggest: ' + (_areaSuggestOn ? 'ON' : 'OFF');
+  btn.classList.toggle('on', _areaSuggestOn);
+  if (!_areaSuggestOn) {
+    clearTimeout(_areaSearchTimer);
+    document.getElementById('areaSuggestions').style.display = 'none';
+  }
+}
+
+function dismissAreaSuggest() {
+  if (_areaSuggestOn) toggleAreaSuggest();
+  document.getElementById('custArea').focus();
+}
+
+function manualRowHtml() {
+  return '<div class="area-suggestion area-manual" onclick="dismissAreaSuggest()">&#9997;&#65039; None of these &mdash; I\'ll type my address manually</div>';
+}
 
 function onAreaSearch(query) {
   clearTimeout(_areaSearchTimer);
   var box = document.getElementById('areaSuggestions');
+  if (!_areaSuggestOn) { box.style.display = 'none'; return; }
   if (!query || query.length < 3) { box.style.display = 'none'; return; }
-  box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">Searching...</div>';
+  box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">Searching...</div>' + manualRowHtml();
   box.style.display = 'block';
   _areaSearchTimer = setTimeout(async function() {
     try {
@@ -618,7 +645,7 @@ function onAreaSearch(query) {
       var d = await r.json();
       _areaSuggestions = d.features || [];
       if (!_areaSuggestions.length) {
-        box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">No results found</div>';
+        box.innerHTML = '<div class="area-suggestion" style="color:#888;cursor:default">No results found</div>' + manualRowHtml();
         return;
       }
       box.innerHTML = _areaSuggestions.map(function(s, i) {
@@ -630,9 +657,9 @@ function onAreaSearch(query) {
         return '<div class="area-suggestion" onclick="pickArea(' + i + ')">' +
           esc(name) + (sub ? '<br><small style="color:#888">' + esc(sub) + '</small>' : '') +
         '</div>';
-      }).join('');
+      }).join('') + manualRowHtml();
     } catch(e) {
-      box.innerHTML = '<div class="area-suggestion" style="color:#f00;cursor:default">Search failed</div>';
+      box.innerHTML = '<div class="area-suggestion" style="color:#f00;cursor:default">Search failed</div>' + manualRowHtml();
     }
   }, 500);
 }
