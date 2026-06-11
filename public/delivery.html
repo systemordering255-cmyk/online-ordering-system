@@ -8,9 +8,14 @@
 <title>Delivery Partner</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;min-height:100vh}
+body{font-family:'Inter','Segoe UI',system-ui,Arial,sans-serif;background:#111827;color:#f9fafb;min-height:100vh;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font-family:inherit}
+button{touch-action:manipulation}
 
 #pinScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;
   background:linear-gradient(135deg,#111827,#134e4a)}
@@ -68,7 +73,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .dc-phone{font-size:13px;color:#9ca3af;margin-bottom:12px}
 .dc-items{font-size:13px;color:#9ca3af;line-height:1.7;margin-bottom:12px;
   padding:10px 12px;background:#111827;border-radius:8px}
-.dc-total{font-size:18px;font-weight:700;color:#3b82f6;margin-bottom:16px}
+.dc-total{font-size:18px;font-weight:800;color:#34d399;margin-bottom:16px}
 .dc-footer{display:flex;gap:10px;flex-direction:column}
 
 .action-btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;
@@ -163,10 +168,16 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#111827;color:#f9fafb;mi
 .dm-pin{background:transparent!important;border:none!important;font-size:28px;line-height:1}
 @media(max-width:480px){
   .refresh-info{display:none}
-  .topbar .brand{font-size:15px}
+  .topbar{padding:0 12px;gap:8px}
+  .topbar .brand{font-size:15px;min-width:0}
+  .topbar .brand span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .order-list{padding:12px}
-  .dc-body{padding:12px}
+  .dc-body{padding:14px 12px}
   .dc-total{font-size:16px}
+  .action-btn{padding:14px;font-size:15px}
+  .map-modal-bar{flex-wrap:wrap}
+  .map-modal-addr{flex:1 1 100%}
+  .map-modal-nav,.map-modal-close{flex:1;padding:12px}
 }
 </style>
 </head>
